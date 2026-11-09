@@ -196,3 +196,4 @@ event の一覧：lesson_start, audio_start, audio_end, grab, release, socket_ok
 | 2026-11-09 | 切り替え設定を追加：`telopFollowsPart`、`ignoreSymmetryAxis`（部品ごと）、`requireAllSocketsFilled`、`timeExcludesPause`。吸着距離 0.05 m、再配置ずらしの上限 10 回、ヒント 60 秒・自動完了 120 秒も ExperimentConfig に置く |
 | 2026-11-09 | 練習課題（練習用の部品を掴んで置く。3回目で失敗したら実験者が補助）は 8 の段階で実装する |
 | 2026-11-09 | head.csv に lesson 列を追加／events.csv・head.csv は1人1ファイル／participants.csv は persistentDataPath に置く |
+| 2026-11-09 | 引き寄せ先までの距離は max(D, dmin)（拡大率 s の D にも同じ値）／真下・真上を向いて水平の正面が決まらないときは HMD の上方向から求める／頭と部品の中心が重なり θ が決まらないときは NaN で「見ていない」／回転角は ω に比例し 360° で止める |
