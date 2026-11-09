@@ -1,0 +1,19 @@
+{
+    "name": "VRClass.Editor",
+    "rootNamespace": "VRClass.EditorTools",
+    "references": [
+        "VRClass.Core",
+        "VRClass.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

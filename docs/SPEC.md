@@ -37,6 +37,7 @@
 | 0 | ② HMD・条件2 | ① HDD・条件1 |
 
 - 番号は `participants.csv`（id の一覧）に登録されたものだけ受け付ける。未登録なら警告して再入力
+- `participants.csv` は `Application.persistentDataPath` に置く（Quest へは adb で送る。ビルドし直さずに変えられる）。1行に1つの id、1行目は見出し「id」でもよい。空行と「#」で始まる行は無視
 - 氏名は扱わない。ログにも番号だけを残す
 
 ## 3. 授業の流れ（状態遷移）
@@ -149,7 +150,7 @@ p_new = p_h + D × f / |f|
 
 ## 6. ログ
 
-保存先：`Application.persistentDataPath/<id>/`。出来事ごとに追記してフラッシュする。
+保存先：`Application.persistentDataPath/<id>/`。出来事ごとに追記してフラッシュする。1人1ファイルで、2本の授業を同じファイルに追記し lesson 列で区別する。文字コードは UTF-8（BOM 付き）
 
 **events.csv**
 
@@ -164,7 +165,7 @@ p_new = p_h + D × f / |f|
 
 event の一覧：lesson_start, audio_start, audio_end, grab, release, socket_ok, reset, hint, skip, op_complete, gaze_ok, gaze_timeout, relocate, gaze_fail, emphasis_start, emphasis_phase, emphasis_end, pause, resume, abort, lesson_end
 
-**head.csv**（[10] Hz）。判定対象がないときの θ は空欄：time, 頭の位置 xyz, 回転（クォータニオン）, 対象部品との角度 θ
+**head.csv**（[10] Hz）：time, lesson, pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, theta。判定対象がないときの θ は空欄
 
 ## 7. 分析（`analysis/`）
 
@@ -194,3 +195,4 @@ event の一覧：lesson_start, audio_start, audio_end, grab, release, socket_ok
 | 2026-11-09 | 条件1でも注視判定・再配置を行う／復帰先は再配置前の位置／正面は水平／拡大率は s ≥ 1 に制限／注視失敗時のテロップは Ttotal 表示／カウンターバランスの均等は考慮しない／テスト・質問紙はアプリ外 |
 | 2026-11-09 | 切り替え設定を追加：`telopFollowsPart`、`ignoreSymmetryAxis`（部品ごと）、`requireAllSocketsFilled`、`timeExcludesPause`。吸着距離 0.05 m、再配置ずらしの上限 10 回、ヒント 60 秒・自動完了 120 秒も ExperimentConfig に置く |
 | 2026-11-09 | 練習課題（練習用の部品を掴んで置く。3回目で失敗したら実験者が補助）は 8 の段階で実装する |
+| 2026-11-09 | head.csv に lesson 列を追加／events.csv・head.csv は1人1ファイル／participants.csv は persistentDataPath に置く |
