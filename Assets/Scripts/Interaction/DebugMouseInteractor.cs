@@ -70,6 +70,7 @@ namespace VRClass.Interaction
             // 掴めなくなった（フィルターで外された）ら追わない
             if (_wantSelect && !hasSelection && _target != null && Time.frameCount > _pickFrame + 1)
             {
+                ReportRejected();
                 Drop();
             }
 
@@ -90,12 +91,14 @@ namespace VRClass.Interaction
         {
             if (!Physics.Raycast(ray, out RaycastHit hit, MaxDistance, ~0, QueryTriggerInteraction.Ignore))
             {
+                Debug.Log("[マウス] 何にも当たっていません（部品の上でクリックしてください）");
                 return;
             }
 
             var part = hit.collider.GetComponentInParent<PartInteraction>();
             if (part == null)
             {
+                Debug.Log($"[マウス] 部品ではありません：{hit.collider.name}");
                 return;
             }
 
@@ -104,6 +107,19 @@ namespace VRClass.Interaction
             transform.SetPositionAndRotation(hit.point, part.transform.rotation);
             _wantSelect = true;
             _pickFrame = Time.frameCount;
+        }
+
+        /// <summary>掴もうとしたが XRI に選択されなかった理由を Console に出す。</summary>
+        private void ReportRejected()
+        {
+            var part = (_target as Component) != null ? ((Component)_target).GetComponent<PartInteraction>() : null;
+            string reason;
+            if (part == null) reason = "部品が見つかりません";
+            else if (part.IsLocked) reason = "正しい位置に固定済みです";
+            else if (!part.IsGrabbable) reason = "今は掴めない時間です（説明音声・強調の間）";
+            else if (inputMode != null && !inputMode.AllowsKeyboardMouse) reason = "入力モードがコントローラーのみです（F1 で切り替え）";
+            else reason = "XRI に選択を断られました（XR Interaction Manager があるか確認）";
+            Debug.Log($"[マウス] 掴めませんでした：{(part != null ? part.PartId : "?")}：{reason}");
         }
 
         private void Drop()
