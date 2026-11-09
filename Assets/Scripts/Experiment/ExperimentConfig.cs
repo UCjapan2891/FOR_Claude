@@ -1,4 +1,5 @@
 using UnityEngine;
+using VRClass.Core;
 
 namespace VRClass.Experiment
 {
@@ -93,5 +94,25 @@ namespace VRClass.Experiment
 
         [Tooltip("time 列から一時停止中の時間を除くか（false＝含める）")]
         public bool timeExcludesPause = false;
+
+        [Header("入力（本実験では ControllerOnly）")]
+        [Tooltip("部品の操作を受け付ける入力。実行中は F1 キーで切り替えられる")]
+        public InputMode inputMode = InputMode.Both;
+
+        [Header("開発用（SPEC にない値。本実験の結果には影響しない）")]
+        [Tooltip("説明音声（AudioClip）が未設定のとき、音声の代わりに待つ秒数")]
+        [Min(0f)] public float missingAudioPlaceholderSec = 2f;
+
+        [Tooltip("HMD がないときのカメラの高さ（m、床から）")]
+        [Min(0f)] public float debugEyeHeight = 1.6f;
+
+        [Tooltip("マウスで視点を回す感度（度/ピクセル）")]
+        [Min(0f)] public float debugLookSensitivity = 0.15f;
+
+        [Tooltip("キーで部品を回す速さ（度/秒）")]
+        [Min(0f)] public float debugRotateSpeedDegPerSec = 90f;
+
+        [Tooltip("矢印キーで移動する速さ（m/秒）")]
+        [Min(0f)] public float debugMoveSpeed = 1.0f;
     }
 }

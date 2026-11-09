@@ -1,0 +1,88 @@
+using System.Collections;
+using UnityEngine;
+using VRClass.Core;
+using VRClass.Experiment;
+using VRClass.Interaction;
+using VRClass.Logging;
+
+namespace VRClass.Lesson
+{
+    /// <summary>
+    /// テスト用：シーンを再生したら、決めた参加者番号で1本の授業を始める。
+    /// 本番の流れ（番号入力 → 割り当て → 2本の授業）は段階8の ExperimentManager で作る。
+    /// ログは Application.persistentDataPath/&lt;participantId&gt;/ に書く（本番の番号と混ざらないよう 9001 番）。
+    /// </summary>
+    public sealed class LessonTestBootstrap : MonoBehaviour
+    {
+        [Tooltip("テスト用の参加者番号（本番の番号と混ぜない）")]
+        [SerializeField] private int participantId = 9001;
+
+        [SerializeField] private LessonData lesson;
+        [SerializeField] private ExperimentConfig config;
+        [SerializeField] private LessonController controller;
+        [SerializeField] private SessionLog sessionLog;
+        [SerializeField] private HeadLogger headLogger;
+        [SerializeField] private InputModeController inputMode;
+
+        private EventLogger _events;
+        private HeadLogWriter _head;
+
+        private IEnumerator Start()
+        {
+            // XRI のソケットが最初の部品を掴むまで1フレーム待つ（その socket_ok は記録しない）
+            yield return null;
+
+            Assignment assignment = ParticipantAssignment.Assign(participantId);
+            LessonSession session = assignment.First.Lesson == lesson.lessonId ? assignment.First : assignment.Second;
+
+            string root = Application.persistentDataPath;
+            var clock = new LessonClock(config.timeExcludesPause);
+            _events = new EventLogger(LogPaths.EventsFile(root, participantId), () => clock.Elapsed);
+            _events.SetParticipant(participantId, assignment.Group);
+            _events.SetLesson(session);
+            _head = new HeadLogWriter(LogPaths.HeadFile(root, participantId));
+
+            sessionLog.Begin(_events, clock);
+            if (headLogger != null)
+            {
+                headLogger.Begin(_head, () => clock.Elapsed, lesson.lessonId.ToString());
+            }
+
+            controller.Finished += OnFinished;
+            string input = inputMode != null ? inputMode.Current.ToString() : "unknown";
+            controller.StartLesson(lesson, $"test=true;order={(session.Lesson == assignment.First.Lesson ? 1 : 2)};input={input}");
+            Debug.Log($"授業を開始しました：参加者 {participantId}（{session}）。ログ：{LogPaths.ParticipantDirectory(root, participantId)}");
+        }
+
+        private void OnFinished()
+        {
+            if (headLogger != null)
+            {
+                headLogger.End();
+            }
+
+            Debug.Log("授業が終わりました。");
+        }
+
+        private void OnDestroy()
+        {
+            if (controller != null)
+            {
+                controller.Finished -= OnFinished;
+            }
+
+            if (headLogger != null)
+            {
+                headLogger.End();
+            }
+
+            if (sessionLog != null)
+            {
+                sessionLog.End();
+            }
+
+            _events?.Dispose();
+            _head?.Dispose();
+        }
+    }
+}

@@ -2,7 +2,10 @@
     "name": "VRClass.Runtime",
     "rootNamespace": "VRClass",
     "references": [
-        "VRClass.Core"
+        "VRClass.Core",
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
