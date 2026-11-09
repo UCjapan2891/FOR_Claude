@@ -30,12 +30,18 @@ namespace VRClass.Lesson
             {
                 LessonFlow flow = controller.Flow;
                 StageData stage = controller.CurrentStage;
-                text += $"状態：{StateLabel(flow.State)}\n";
+                text += $"状態：{StateLabel(flow.State)}"
+                        + (controller.IsPaused ? "【一時停止中】" : string.Empty)
+                        + (controller.IsAborted ? "【中断】" : string.Empty) + "\n";
                 if (stage != null && flow.State != LessonState.AssemblyCheck && flow.State != LessonState.Finished)
                 {
                     text += $"段階 {flow.StageNumber}/{flow.StageCount}：{stage.stageName}\n";
                     text += $"対象：{stage.targetPartId}　完了条件：{CompletionLabel(stage.completion)}"
                             + (stage.isKeyPoint ? "　【要点】" : string.Empty) + "\n";
+                    if (flow.State == LessonState.Accepting)
+                    {
+                        text += $"受付 {controller.AcceptingSeconds:0} 秒／ヒント {controller.HintCount} 回\n";
+                    }
                 }
             }
             else
@@ -45,10 +51,11 @@ namespace VRClass.Lesson
 
             if (inputMode == null || inputMode.AllowsKeyboardMouse)
             {
-                text += "左ドラッグ：掴む／ホイール：前後／Q E・R F・Z X：回す\n右ドラッグ：見回す／矢印：移動（HMD なしのとき）";
+                text += "左ドラッグ：掴む／ホイール：前後／Q E・R F・Z X：回す\n右ドラッグ：見回す／矢印：移動（HMD なしのとき）\n1：リセット／2：ヒント\n";
             }
 
-            GUI.Box(new Rect(10, 10, 460, 130), text, _style);
+            text += "【実験者】S：スキップ／P：一時停止・再開／A×2：中断／F2：HMD を外したまね";
+            GUI.Box(new Rect(10, 10, 520, 190), text, _style);
         }
 
         private static string StateLabel(LessonState s)

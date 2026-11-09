@@ -9,6 +9,9 @@ using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.Rendering;
 using VRClass.Core;
 using VRClass.Experiment;
 using VRClass.Interaction;
@@ -153,6 +156,15 @@ namespace VRClass.EditorTools
             var bootstrap = lessonGo.AddComponent<LessonTestBootstrap>();
             var overlay = lessonGo.AddComponent<LessonDebugOverlay>();
             LessonMessageView message = CreateMessageView(font);
+            var experimenter = lessonGo.AddComponent<ExperimenterControls>();
+            var presence = lessonGo.AddComponent<PresenceMonitor>();
+            var hint = lessonGo.AddComponent<HintPresenter>();
+
+            // UI（学習者パネル）：コントローラーの光線とマウスの両方で押せるように XRUIInputModule を使う
+            var eventSystem = new GameObject("EventSystem");
+            eventSystem.AddComponent<EventSystem>();
+            eventSystem.AddComponent<XRUIInputModule>();
+            LearnerPanel panel = CreateLearnerPanel(font, cam, inputMode);
 
             Set(inputMode, "config", config);
             Set(assemblyLock, "config", config);
@@ -170,6 +182,13 @@ namespace VRClass.EditorTools
             Set(bootstrap, "inputMode", inputMode);
             Set(overlay, "controller", controller);
             Set(overlay, "inputMode", inputMode);
+            Set(controller, "learnerPanel", panel);
+            Set(controller, "hintPresenter", hint);
+            Set(hint, "hintMaterial", GetHintMaterial());
+            Set(experimenter, "controller", controller);
+            Set(experimenter, "config", config);
+            Set(presence, "controller", controller);
+            Set(presence, "config", config);
 
             // デバッグ用のキーマウ操作
             var mouseGo = new GameObject("Debug Mouse Interactor");
@@ -258,6 +277,93 @@ namespace VRClass.EditorTools
             Set(partSocket, "config", config);
             Set(partSocket, "sessionLog", sessionLog);
             SetStrings(partSocket, "prerequisiteSocketIds", spec.Prerequisites);
+        }
+
+        /// <summary>学習者パネル（リセット・ヒント）。机の左手前に、少し奥へ傾けて置く（位置はシーンで動かしてよい）。</summary>
+        private static LearnerPanel CreateLearnerPanel(TMP_FontAsset font, Camera cam, InputModeController inputMode)
+        {
+            var canvasGo = new GameObject("Learner Panel", typeof(RectTransform));
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = cam;
+            canvasGo.AddComponent<GraphicRaycaster>();             // マウス
+            canvasGo.AddComponent<TrackedDeviceGraphicRaycaster>(); // コントローラー
+            var rect = (RectTransform)canvasGo.transform;
+            rect.sizeDelta = new Vector2(320f, 150f);
+            rect.localScale = Vector3.one * 0.001f; // 0.32 m × 0.15 m
+            rect.SetPositionAndRotation(new Vector3(-0.45f, TableTopY + 0.12f, 0.36f), Quaternion.Euler(35f, -15f, 0f));
+
+            var bg = new GameObject("Background", typeof(RectTransform)).AddComponent<Image>();
+            bg.transform.SetParent(canvasGo.transform, false);
+            bg.color = new Color(0.1f, 0.1f, 0.12f, 0.9f);
+            Stretch((RectTransform)bg.transform);
+
+            Button reset = CreateButton(canvasGo.transform, "Reset Button", "リセット", new Vector2(-80f, 0f), font);
+            Button hint = CreateButton(canvasGo.transform, "Hint Button", "ヒント", new Vector2(80f, 0f), font);
+
+            var panel = canvasGo.AddComponent<LearnerPanel>();
+            Set(panel, "resetButton", reset);
+            Set(panel, "hintButton", hint);
+            Set(panel, "inputMode", inputMode);
+            return panel;
+        }
+
+        private static Button CreateButton(Transform parent, string name, string label, Vector2 position, TMP_FontAsset font)
+        {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var r = (RectTransform)go.transform;
+            r.sizeDelta = new Vector2(140f, 100f);
+            r.anchoredPosition = position;
+            var image = go.AddComponent<Image>();
+            image.color = new Color(0.25f, 0.45f, 0.85f);
+            var button = go.AddComponent<Button>();
+            button.targetGraphic = image;
+
+            var text = new GameObject("Label", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+            text.transform.SetParent(go.transform, false);
+            Stretch((RectTransform)text.transform);
+            text.alignment = TextAlignmentOptions.Center;
+            text.fontSize = 32f;
+            text.color = Color.white;
+            text.text = label;
+            if (font != null)
+            {
+                text.font = font;
+            }
+
+            return button;
+        }
+
+        /// <summary>ヒント用の半透明の黄色（URP Unlit、Transparent）。</summary>
+        private static Material GetHintMaterial()
+        {
+            EnsureFolder(MaterialFolder);
+            string path = $"{MaterialFolder}/Hint.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat != null)
+            {
+                return mat;
+            }
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Transparent");
+            }
+
+            mat = new Material(shader);
+            mat.SetColor("_BaseColor", new Color(1f, 0.85f, 0.1f, 0.5f));
+            mat.SetFloat("_Surface", 1f); // Transparent
+            mat.SetFloat("_Blend", 0f);   // Alpha
+            mat.SetOverrideTag("RenderType", "Transparent");
+            mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.renderQueue = (int)RenderQueue.Transparent;
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
         }
 
         private static LessonMessageView CreateMessageView(TMP_FontAsset font)

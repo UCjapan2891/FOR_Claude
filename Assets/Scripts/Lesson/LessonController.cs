@@ -11,11 +11,14 @@ namespace VRClass.Lesson
 {
     /// <summary>
     /// LessonData を SPEC 3章の流れで進める。状態遷移そのものは LessonFlow（Core）に任せ、
-    /// ここでは音声・部品の掴み・ログを動かす。条件による分岐は書かない（CLAUDE.md 3章）。
+    /// ここでは音声・部品の掴み・ログ・学習者パネル・実験者の操作（SPEC 5.2、5.3）を動かす。
+    /// 条件による分岐は書かない（CLAUDE.md 3章）。
     /// </summary>
     public sealed class LessonController : MonoBehaviour
     {
         public const string RemoveHmdMessage = "授業は終わりです。HMD を外してください";
+        public const string PausedMessage = "一時停止中です";
+        public const string AbortedMessage = "授業を中断しました";
 
         [SerializeField] private ExperimentConfig config;
         [SerializeField] private SessionLog sessionLog;
@@ -24,12 +27,17 @@ namespace VRClass.Lesson
         [SerializeField] private AudioSource narrationSource;
 
         [SerializeField] private LessonMessageView messageView;
+        [SerializeField] private LearnerPanel learnerPanel;
+        [SerializeField] private HintPresenter hintPresenter;
 
         private readonly Dictionary<string, PartInteraction> _parts = new Dictionary<string, PartInteraction>();
         private readonly List<PartSocket> _sockets = new List<PartSocket>();
         private IKeyPointHandler _keyPointHandler = new NoOpKeyPointHandler();
         private LessonData _data;
         private Coroutine _running;
+        private AutoTimer _autoTimer;
+        private int _hintCount;
+        private string _pendingCompleteDetail;
 
         public LessonFlow Flow { get; private set; }
 
@@ -42,8 +50,26 @@ namespace VRClass.Lesson
 
         public IReadOnlyList<PartSocket> Sockets => _sockets;
 
+        /// <summary>一時停止中か。</summary>
+        public bool IsPaused { get; private set; }
+
+        /// <summary>中断したか（その授業は分析から除外する）。</summary>
+        public bool IsAborted { get; private set; }
+
+        /// <summary>授業が進行中か（開始後、終了・中断の前）。</summary>
+        public bool IsRunning => Flow != null && Flow.State != LessonState.NotStarted && Flow.State != LessonState.Finished && !IsAborted;
+
+        /// <summary>今の段階でヒントを押した回数。</summary>
+        public int HintCount => _hintCount;
+
+        /// <summary>受付の経過秒（自動タイマー用）。</summary>
+        public double AcceptingSeconds => _autoTimer != null ? _autoTimer.Elapsed : 0;
+
         /// <summary>授業が終わった（lesson_end を書いた後）。</summary>
         public event Action Finished;
+
+        /// <summary>授業を中断した（abort を書いた後）。</summary>
+        public event Action Aborted;
 
         /// <summary>要点の処理を差し替える（段階5・6で注視判定と強調を入れる）。</summary>
         public void SetKeyPointHandler(IKeyPointHandler handler)
@@ -51,16 +77,23 @@ namespace VRClass.Lesson
             _keyPointHandler = handler ?? new NoOpKeyPointHandler();
         }
 
-        /// <summary>1. 授業開始：授業データを読み込み、段階1の説明音声から始める。</summary>
+        // =====================================================================
+        // 1. 授業開始
+        // =====================================================================
+
+        /// <summary>授業データを読み込み、段階1の説明音声から始める。</summary>
         public void StartLesson(LessonData data, string startDetail = null)
         {
-            if (Flow != null && Flow.State != LessonState.Finished)
+            if (IsRunning)
             {
                 throw new InvalidOperationException("授業が既に進行中です。");
             }
 
             _data = data != null ? data : throw new ArgumentNullException(nameof(data));
             Flow = new LessonFlow(data.ToFlowStages());
+            IsPaused = false;
+            IsAborted = false;
+            _autoTimer = new AutoTimer(config.useAutoTimers, config.autoHintAfterSec, config.autoCompleteAfterSec);
             CollectSceneObjects();
             ValidateData();
 
@@ -116,6 +149,12 @@ namespace VRClass.Lesson
                 s.Attached += OnSocketAttached;
                 s.Detached += OnSocketDetached;
             }
+
+            if (learnerPanel != null)
+            {
+                learnerPanel.ResetRequested += OnResetRequested;
+                learnerPanel.HintRequested += OnHintRequested;
+            }
         }
 
         private void ValidateData()
@@ -131,11 +170,17 @@ namespace VRClass.Lesson
             }
         }
 
-        // ---- 2. 説明音声 ----
+        // =====================================================================
+        // 2. 説明音声
+        // =====================================================================
+
         private void EnterNarration()
         {
             sessionLog.CurrentStage = Flow.StageNumber;
+            _hintCount = 0;
+            HideHint();
             SetAllGrabbable(false);
+            SetPanel(true);
             Run(NarrationRoutine(CurrentStage));
         }
 
@@ -164,10 +209,22 @@ namespace VRClass.Lesson
             EnterAccepting();
         }
 
-        // ---- 3〜4. 操作受付・完了判定 ----
+        private void StopNarration()
+        {
+            if (narrationSource != null && narrationSource.isPlaying)
+            {
+                narrationSource.Stop();
+            }
+        }
+
+        // =====================================================================
+        // 3〜4. 操作受付・完了判定
+        // =====================================================================
+
         private void EnterAccepting()
         {
             SetAllGrabbable(true);
+            _autoTimer.Restart();
             StageData stage = CurrentStage;
 
             if (stage.completion == CompletionType.None)
@@ -176,7 +233,7 @@ namespace VRClass.Lesson
                 return;
             }
 
-            // 前の段階の間に、先に済ませていた場合（例：既に外してある）
+            // 前の段階の間に、先に済ませていた場合（例：既に付けてある）
             if (IsAlreadySatisfied(stage))
             {
                 CompleteOperation("already");
@@ -185,7 +242,7 @@ namespace VRClass.Lesson
 
         private bool IsAlreadySatisfied(StageData stage)
         {
-            if (!_parts.TryGetValue(stage.targetPartId ?? string.Empty, out PartInteraction part))
+            if (!TryGetTarget(stage, out PartInteraction part))
             {
                 return false;
             }
@@ -217,7 +274,7 @@ namespace VRClass.Lesson
                 return;
             }
 
-            if (Flow != null && Flow.State == LessonState.AssemblyCheck)
+            if (Flow != null && Flow.State == LessonState.AssemblyCheck && !IsPaused)
             {
                 TryConfirmAssembly();
             }
@@ -234,21 +291,28 @@ namespace VRClass.Lesson
         private bool IsAcceptingFor(PartInteraction part, CompletionType completion)
         {
             return Flow != null
+                   && !IsPaused
+                   && !IsAborted
                    && Flow.State == LessonState.Accepting
                    && CurrentStage.completion == completion
                    && part.PartId == CurrentStage.targetPartId;
         }
 
-        /// <summary>
-        /// 操作完了（op_complete）。実験者のスキップ（段階4）からも呼ぶ。
-        /// </summary>
+        /// <summary>操作完了（op_complete）。</summary>
         public void CompleteOperation(string detail)
         {
-            if (Flow == null || Flow.State != LessonState.Accepting)
+            if (Flow == null || Flow.State != LessonState.Accepting || IsPaused || IsAborted)
             {
                 return;
             }
 
+            if (_pendingCompleteDetail != null)
+            {
+                detail = _pendingCompleteDetail;
+                _pendingCompleteDetail = null;
+            }
+
+            HideHint();
             sessionLog.Log(LogEvent.OpComplete, CurrentStage.targetPartId, detail);
             Flow.OperationCompleted();
             if (Flow.State == LessonState.KeyPoint)
@@ -261,11 +325,14 @@ namespace VRClass.Lesson
             }
         }
 
-        // ---- 5〜7. 要点 ----
+        // =====================================================================
+        // 5〜7. 要点
+        // =====================================================================
+
         private void EnterKeyPoint()
         {
             StageData stage = CurrentStage;
-            _parts.TryGetValue(stage.targetPartId ?? string.Empty, out PartInteraction target);
+            TryGetTarget(stage, out PartInteraction target);
             var context = new KeyPointContext(stage, Flow.StageNumber ?? 0, target);
             Run(KeyPointRoutine(context));
         }
@@ -278,7 +345,10 @@ namespace VRClass.Lesson
             AfterStage();
         }
 
-        // ---- 8. 最後のパートか？ ----
+        // =====================================================================
+        // 8. 最後のパートか？
+        // =====================================================================
+
         private void AfterStage()
         {
             switch (Flow.State)
@@ -292,11 +362,15 @@ namespace VRClass.Lesson
             }
         }
 
-        // ---- 9. 組み立て確認 ----
+        // =====================================================================
+        // 9. 組み立て確認
+        // =====================================================================
+
         private void EnterAssemblyCheck()
         {
             sessionLog.CurrentStage = null;
             SetAllGrabbable(true);
+            SetPanel(false);
             TryConfirmAssembly();
         }
 
@@ -309,6 +383,7 @@ namespace VRClass.Lesson
 
             Flow.AssemblyConfirmed();
             SetAllGrabbable(false);
+            SetPanel(false);
             sessionLog.Log(LogEvent.LessonEnd, null, "assembled=" + (AllSocketsFilled() ? "true" : "false"));
             if (messageView != null)
             {
@@ -331,23 +406,295 @@ namespace VRClass.Lesson
             return true;
         }
 
-        // ---- 共通 ----
-        private void SetAllGrabbable(bool grabbable)
+        // =====================================================================
+        // 5.2 学習者パネル
+        // =====================================================================
+
+        private void OnResetRequested(string source)
+        {
+            if (!IsRunning || IsPaused || CurrentStage == null || Flow.State == LessonState.KeyPoint)
+            {
+                return;
+            }
+
+            if (!TryGetTarget(CurrentStage, out PartInteraction part) || part.IsLocked || part.CurrentSocket != null)
+            {
+                return; // 対象部品がない・付いている部品は動かさない
+            }
+
+            part.ReturnHome(source == "key" ? "key" : "button");
+        }
+
+        private void OnHintRequested(string source)
+        {
+            ShowHint(source);
+        }
+
+        /// <summary>ヒント：正しい場所を光らせ、hint を回数つきで記録する。受付中だけ。</summary>
+        public void ShowHint(string reason)
+        {
+            if (Flow == null || Flow.State != LessonState.Accepting || IsPaused || IsAborted)
+            {
+                return;
+            }
+
+            StageData stage = CurrentStage;
+            if (!TryGetTarget(stage, out PartInteraction part))
+            {
+                return;
+            }
+
+            _hintCount++;
+            sessionLog.Log(LogEvent.Hint, stage.targetPartId, $"count={_hintCount};reason={reason}");
+
+            if (hintPresenter == null)
+            {
+                return;
+            }
+
+            Transform at = null;
+            if (stage.completion == CompletionType.Attach)
+            {
+                PartSocket socket = FindSocketFor(part);
+                at = socket != null ? (socket.Socket.attachTransform != null ? socket.Socket.attachTransform : socket.transform) : null;
+            }
+
+            hintPresenter.Show(part, at); // 「触れる」「外す」は部品そのものを光らせる
+        }
+
+        private void HideHint()
+        {
+            if (hintPresenter != null)
+            {
+                hintPresenter.Hide();
+            }
+        }
+
+        // =====================================================================
+        // 5.3 実験者の操作
+        // =====================================================================
+
+        /// <summary>
+        /// スキップ（S、または自動タイマー）：そのパートを自動で完了する。skip を記録する。
+        /// 説明音声の途中なら音声を止める。「付ける」は部品を正しい場所に自動で置き、「外す」はソケットから外して机に戻す。
+        /// 組み立て確認中なら、足りない部品を全部置いて終える。
+        /// </summary>
+        public void Skip(string reason)
+        {
+            if (!IsRunning || IsPaused)
+            {
+                return;
+            }
+
+            if (Flow.State == LessonState.AssemblyCheck)
+            {
+                sessionLog.Log(LogEvent.Skip, null, "reason=" + reason + ";assembly");
+                foreach (PartSocket s in _sockets)
+                {
+                    if (!s.IsFilledCorrectly && _parts.TryGetValue(s.AcceptedPartId, out PartInteraction p))
+                    {
+                        s.ForcePlace(p);
+                    }
+                }
+
+                TryConfirmAssembly();
+                return;
+            }
+
+            if (Flow.State == LessonState.Narration)
+            {
+                StopRunning();
+                StopNarration();
+                sessionLog.Log(LogEvent.AudioEnd, CurrentStage.targetPartId, "skipped");
+                Flow.NarrationFinished();
+                SetAllGrabbable(true);
+                _autoTimer.Restart();
+            }
+
+            if (Flow.State != LessonState.Accepting)
+            {
+                return; // 要点の最中は飛ばさない
+            }
+
+            StageData stage = CurrentStage;
+            sessionLog.Log(LogEvent.Skip, stage.targetPartId, "reason=" + reason);
+            _pendingCompleteDetail = "skip;reason=" + reason;
+
+            if (TryGetTarget(stage, out PartInteraction part))
+            {
+                if (stage.completion == CompletionType.Attach)
+                {
+                    PartSocket socket = FindSocketFor(part);
+                    if (socket != null)
+                    {
+                        socket.ForcePlace(part); // 付いた時点で op_complete まで進む
+                    }
+                }
+                else if (stage.completion == CompletionType.Detach && part.CurrentSocket != null)
+                {
+                    var manager = part.CurrentSocket.Socket.interactionManager;
+                    if (manager != null)
+                    {
+                        manager.SelectExit(part.CurrentSocket.Socket, part.Grab); // 外れた時点で op_complete まで進む
+                    }
+                }
+            }
+
+            CompleteOperation("skip;reason=" + reason); // まだ完了していなければここで完了
+            _pendingCompleteDetail = null;
+        }
+
+        /// <summary>
+        /// 一時停止（P、または HMD を外した・トラッキングを失った）。pause を記録する。
+        /// 音声を止め、手に持っている部品を離させ、強調中なら部品を元に戻す。再開はパートの最初から。
+        /// </summary>
+        public void Pause(string reason)
+        {
+            if (!IsRunning || IsPaused)
+            {
+                return;
+            }
+
+            IsPaused = true;
+            StopRunning();
+            StopNarration();
+            _keyPointHandler.Cancel();
+            HideHint();
+            SetAllGrabbable(false, releaseHeld: true);
+            SetPanel(false);
+            sessionLog.Clock?.Pause();
+            sessionLog.Log(LogEvent.Pause, CurrentStage?.targetPartId, "reason=" + reason + ";state=" + Flow.State);
+            if (messageView != null)
+            {
+                messageView.Show(PausedMessage);
+            }
+        }
+
+        /// <summary>再開（P）。resume を記録し、そのパートを説明音声から始め直す（組み立て確認中ならそのまま続ける）。</summary>
+        public void Resume()
+        {
+            if (!IsPaused || IsAborted)
+            {
+                return;
+            }
+
+            IsPaused = false;
+            sessionLog.Clock?.Resume();
+            sessionLog.Log(LogEvent.Resume, CurrentStage?.targetPartId, "state=" + Flow.State);
+            if (messageView != null)
+            {
+                messageView.Hide();
+            }
+
+            if (Flow.State == LessonState.AssemblyCheck)
+            {
+                EnterAssemblyCheck();
+                return;
+            }
+
+            Flow.RestartStage();
+            EnterNarration();
+        }
+
+        /// <summary>中断（A を2回）。abort を記録して授業を止める（その授業は分析から除外。ログは保存）。</summary>
+        public void Abort(string reason)
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+
+            StopRunning();
+            StopNarration();
+            _keyPointHandler.Cancel();
+            HideHint();
+            SetAllGrabbable(false, releaseHeld: true);
+            SetPanel(false);
+            sessionLog.Log(LogEvent.Abort, CurrentStage?.targetPartId, "reason=" + reason + ";state=" + Flow.State);
+            IsAborted = true;
+            IsPaused = false;
+            if (messageView != null)
+            {
+                messageView.Show(AbortedMessage);
+            }
+
+            Aborted?.Invoke();
+        }
+
+        // =====================================================================
+        // 自動タイマー（SPEC 5.3：useAutoTimers）
+        // =====================================================================
+
+        private void Update()
+        {
+            if (Flow == null || Flow.State != LessonState.Accepting || IsPaused || IsAborted)
+            {
+                return;
+            }
+
+            switch (_autoTimer.Tick(Time.deltaTime))
+            {
+                case AutoTimerAction.Hint:
+                    ShowHint("auto");
+                    break;
+                case AutoTimerAction.Complete:
+                    Skip("auto");
+                    break;
+            }
+        }
+
+        // =====================================================================
+        // 共通
+        // =====================================================================
+
+        private bool TryGetTarget(StageData stage, out PartInteraction part)
+        {
+            part = null;
+            return stage != null && _parts.TryGetValue(stage.targetPartId ?? string.Empty, out part);
+        }
+
+        private PartSocket FindSocketFor(PartInteraction part)
+        {
+            foreach (PartSocket s in _sockets)
+            {
+                if (s.AcceptedPartId == part.PartId)
+                {
+                    return s;
+                }
+            }
+
+            return null;
+        }
+
+        private void SetAllGrabbable(bool grabbable, bool releaseHeld = false)
         {
             foreach (PartInteraction p in _parts.Values)
             {
-                p.SetGrabbable(grabbable);
+                p.SetGrabbable(grabbable, releaseHeld);
+            }
+        }
+
+        private void SetPanel(bool interactable)
+        {
+            if (learnerPanel != null)
+            {
+                learnerPanel.SetInteractable(interactable);
             }
         }
 
         private void Run(IEnumerator routine)
         {
+            StopRunning();
+            _running = StartCoroutine(routine);
+        }
+
+        private void StopRunning()
+        {
             if (_running != null)
             {
                 StopCoroutine(_running);
+                _running = null;
             }
-
-            _running = StartCoroutine(routine);
         }
 
         private void Unsubscribe()
@@ -362,6 +709,12 @@ namespace VRClass.Lesson
                 if (s == null) continue;
                 s.Attached -= OnSocketAttached;
                 s.Detached -= OnSocketDetached;
+            }
+
+            if (learnerPanel != null)
+            {
+                learnerPanel.ResetRequested -= OnResetRequested;
+                learnerPanel.HintRequested -= OnHintRequested;
             }
         }
 

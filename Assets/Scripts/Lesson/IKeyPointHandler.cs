@@ -29,6 +29,12 @@ namespace VRClass.Lesson
     public interface IKeyPointHandler
     {
         IEnumerator Run(KeyPointContext context);
+
+        /// <summary>
+        /// 一時停止・中断されたとき、すぐに部品を元の状態（位置・回転・大きさ・ソケット）へ戻す（SPEC 5.3）。
+        /// Run のコルーチンは呼び出し側が止める。
+        /// </summary>
+        void Cancel();
     }
 
     /// <summary>仮の処理：何もしないで終わる（段階3用）。</summary>
@@ -37,6 +43,10 @@ namespace VRClass.Lesson
         public IEnumerator Run(KeyPointContext context)
         {
             yield break;
+        }
+
+        public void Cancel()
+        {
         }
     }
 }

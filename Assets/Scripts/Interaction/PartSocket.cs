@@ -34,6 +34,7 @@ namespace VRClass.Interaction
         [SerializeField] private SessionLog sessionLog;
 
         private XRSocketInteractor _socket;
+        private bool _forceAccept;
         private float _lastAngle = float.NaN;
         private float _lastDistance = float.NaN;
 
@@ -68,8 +69,8 @@ namespace VRClass.Interaction
                 return false;
             }
 
-            // 既に付いている部品は、そのまま付けておく
-            if (CurrentPart == part)
+            // 既に付いている部品は、そのまま付けておく。ForcePlace 中は判定を飛ばす
+            if (CurrentPart == part || _forceAccept)
             {
                 return true;
             }
@@ -87,6 +88,64 @@ namespace VRClass.Interaction
         {
             PartInteraction part = FindPart(interactable);
             return part != null && part.PartId == acceptedPartId;
+        }
+
+        /// <summary>
+        /// 部品をこのソケットに自動で付ける（実験者のスキップ・自動完了）。
+        /// 手に持っていれば離させ、正しい位置・向きへ動かしてから付ける。付けられたら true。
+        /// </summary>
+        public bool ForcePlace(PartInteraction part)
+        {
+            if (part == null || part.PartId != acceptedPartId)
+            {
+                return false;
+            }
+
+            if (CurrentPart == part)
+            {
+                return true;
+            }
+
+            if (CurrentPart != null)
+            {
+                return false; // 別の部品が付いている
+            }
+
+            var manager = Socket.interactionManager;
+            if (manager == null)
+            {
+                return false;
+            }
+
+            // ソケットは手に持っている部品を選べないので、先に手から離す
+            var holders = new System.Collections.Generic.List<IXRSelectInteractor>(part.Grab.interactorsSelecting);
+            foreach (IXRSelectInteractor holder in holders)
+            {
+                manager.SelectExit(holder, part.Grab);
+            }
+
+            // 別のソケットに付いていれば外す
+            if (part.CurrentSocket != null && part.CurrentSocket != this)
+            {
+                manager.SelectExit(part.CurrentSocket.Socket, part.Grab);
+            }
+
+            Transform attach = Socket.attachTransform != null ? Socket.attachTransform : transform;
+            part.transform.SetPositionAndRotation(attach.position, attach.rotation);
+            _lastAngle = 0f;
+            _lastDistance = 0f;
+
+            _forceAccept = true;
+            try
+            {
+                manager.SelectEnter((IXRSelectInteractor)Socket, part.Grab);
+            }
+            finally
+            {
+                _forceAccept = false;
+            }
+
+            return CurrentPart == part;
         }
 
         private static PartInteraction FindPart(IXRInteractable interactable)

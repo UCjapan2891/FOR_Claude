@@ -54,6 +54,7 @@ namespace VRClass.Lesson
             }
 
             controller.Finished += OnFinished;
+            controller.Aborted += OnFinished;
             string input = inputMode != null ? inputMode.Current.ToString() : "unknown";
             controller.StartLesson(lesson, $"test=true;order={(session.Lesson == assignment.First.Lesson ? 1 : 2)};input={input}");
             Debug.Log($"授業を開始しました：参加者 {participantId}（{session}）。ログ：{LogPaths.ParticipantDirectory(root, participantId)}");
@@ -92,6 +93,7 @@ namespace VRClass.Lesson
             if (controller != null)
             {
                 controller.Finished -= OnFinished;
+                controller.Aborted -= OnFinished;
             }
 
             if (headLogger != null)

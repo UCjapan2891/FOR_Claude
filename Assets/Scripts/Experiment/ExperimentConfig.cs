@@ -86,6 +86,13 @@ namespace VRClass.Experiment
         [Tooltip("自動で完了させるまでの秒数")]
         [Min(0f)] public float autoCompleteAfterSec = 120f;
 
+        [Header("5.3 実験者の操作・自動一時停止")]
+        [Tooltip("HMD を外した・トラッキングを失った状態がこの秒数続いたら自動で一時停止する")]
+        [Min(0f)] public float presenceGraceSec = 0.5f;
+
+        [Tooltip("中断（A）は、この秒数以内に2回押したときだけ行う（誤操作を防ぐ）")]
+        [Min(0.1f)] public float abortDoublePressSec = 2f;
+
         [Header("3章 授業の流れ")]
         [Tooltip("授業の終わりに、全ソケットに正しい部品が入っていることを確認するか")]
         public bool requireAllSocketsFilled = true;
