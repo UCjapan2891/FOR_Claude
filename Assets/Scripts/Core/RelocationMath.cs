@@ -58,6 +58,39 @@ namespace VRClass.Core
         }
 
         /// <summary>
+        /// 他の部品と重ならない位置を探す（SPEC 4.2：[0.1] m ずつ奥へ、上限 maxShifts 回）。
+        /// isOccupied(位置) が false になった最初の位置を返す。上限まで全部重なっていたら最後の位置を返し、exhausted = true。
+        /// </summary>
+        public static Vector3 FindFreePosition(Vector3 basePosition, Vector3 horizontalDirection, float step, int maxShifts,
+            Func<Vector3, bool> isOccupied, out int shifts, out bool exhausted)
+        {
+            if (isOccupied == null)
+            {
+                throw new ArgumentNullException(nameof(isOccupied));
+            }
+
+            if (maxShifts < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maxShifts), maxShifts, "上限は0以上です。");
+            }
+
+            for (int k = 0; k <= maxShifts; k++)
+            {
+                Vector3 p = ShiftedPosition(basePosition, horizontalDirection, step, k);
+                if (!isOccupied(p))
+                {
+                    shifts = k;
+                    exhausted = false;
+                    return p;
+                }
+            }
+
+            shifts = maxShifts;
+            exhausted = true;
+            return ShiftedPosition(basePosition, horizontalDirection, step, maxShifts);
+        }
+
+        /// <summary>
         /// 引き寄せ先 pt（SPEC 4.3①）：頭から水平の正面へ D の位置。
         /// 頭から dmin 以上離す（D &lt; dmin のときは dmin の位置）。
         /// </summary>

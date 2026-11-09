@@ -35,6 +35,7 @@ namespace VRClass.Interaction
 
         private XRSocketInteractor _socket;
         private bool _forceAccept;
+        private bool _suppressLog;
         private float _lastAngle = float.NaN;
         private float _lastDistance = float.NaN;
 
@@ -90,11 +91,27 @@ namespace VRClass.Interaction
             return part != null && part.PartId == acceptedPartId;
         }
 
+        /// <summary>ソケットから部品を外す（記録はしない。再配置・強調で一時的に外すとき）。</summary>
+        public void Release(PartInteraction part)
+        {
+            if (part == null || CurrentPart != part)
+            {
+                return;
+            }
+
+            var manager = Socket.interactionManager;
+            if (manager != null)
+            {
+                manager.SelectExit((IXRSelectInteractor)Socket, part.Grab);
+            }
+        }
+
         /// <summary>
         /// 部品をこのソケットに自動で付ける（実験者のスキップ・自動完了）。
         /// 手に持っていれば離させ、正しい位置・向きへ動かしてから付ける。付けられたら true。
         /// </summary>
-        public bool ForcePlace(PartInteraction part)
+        /// <param name="logSocketOk">false なら socket_ok を記録しない（再配置・強調の後に元へ戻すとき）</param>
+        public bool ForcePlace(PartInteraction part, bool logSocketOk = true)
         {
             if (part == null || part.PartId != acceptedPartId)
             {
@@ -136,6 +153,7 @@ namespace VRClass.Interaction
             _lastDistance = 0f;
 
             _forceAccept = true;
+            _suppressLog = !logSocketOk;
             try
             {
                 manager.SelectEnter((IXRSelectInteractor)Socket, part.Grab);
@@ -143,6 +161,7 @@ namespace VRClass.Interaction
             finally
             {
                 _forceAccept = false;
+                _suppressLog = false;
             }
 
             return CurrentPart == part;
@@ -190,7 +209,7 @@ namespace VRClass.Interaction
             CurrentPart = part;
             part.CurrentSocket = this;
 
-            if (sessionLog != null)
+            if (sessionLog != null && !_suppressLog)
             {
                 string detail = "socket=" + socketId
                                 + ";angle=" + Format(_lastAngle)

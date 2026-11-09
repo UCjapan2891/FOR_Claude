@@ -30,6 +30,9 @@ namespace VRClass.Lesson
         [SerializeField] private LearnerPanel learnerPanel;
         [SerializeField] private HintPresenter hintPresenter;
 
+        [Tooltip("要点の処理（IKeyPointHandler を実装したコンポーネント。GazeKeyPointHandler など）。空なら何もしない")]
+        [SerializeField] private MonoBehaviour keyPointHandler;
+
         private readonly Dictionary<string, PartInteraction> _parts = new Dictionary<string, PartInteraction>();
         private readonly List<PartSocket> _sockets = new List<PartSocket>();
         private IKeyPointHandler _keyPointHandler = new NoOpKeyPointHandler();
@@ -90,6 +93,15 @@ namespace VRClass.Lesson
             }
 
             _data = data != null ? data : throw new ArgumentNullException(nameof(data));
+            if (keyPointHandler is IKeyPointHandler handler)
+            {
+                _keyPointHandler = handler;
+            }
+            else if (keyPointHandler != null)
+            {
+                Debug.LogError($"{keyPointHandler.GetType().Name} は IKeyPointHandler ではありません。", this);
+            }
+
             Flow = new LessonFlow(data.ToFlowStages());
             IsPaused = false;
             IsAborted = false;
@@ -331,6 +343,9 @@ namespace VRClass.Lesson
 
         private void EnterKeyPoint()
         {
+            // 要点の間（注視判定・強調）は全部の部品を掴めなくし、手に持っている部品も離させる（2026-11-10 決定）
+            SetAllGrabbable(false, releaseHeld: true);
+            SetPanel(false);
             StageData stage = CurrentStage;
             TryGetTarget(stage, out PartInteraction target);
             var context = new KeyPointContext(stage, Flow.StageNumber ?? 0, target);

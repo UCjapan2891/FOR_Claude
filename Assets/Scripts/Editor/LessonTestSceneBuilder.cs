@@ -14,6 +14,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using VRClass.Core;
 using VRClass.Experiment;
+using VRClass.Gaze;
 using VRClass.Interaction;
 using VRClass.Lesson;
 using VRClass.Logging;
@@ -160,6 +161,12 @@ namespace VRClass.EditorTools
             var presence = lessonGo.AddComponent<PresenceMonitor>();
             var hint = lessonGo.AddComponent<HintPresenter>();
 
+            // 要点：注視判定と再配置（段階6で強調を加える）
+            var relocator = lessonGo.AddComponent<Relocator>();
+            var gazeJudge = lessonGo.AddComponent<GazeJudge>();
+            var keyPoint = lessonGo.AddComponent<GazeKeyPointHandler>();
+            var gazeDebug = lessonGo.AddComponent<GazeDebugView>();
+
             // UI（学習者パネル）：コントローラーの光線とマウスの両方で押せるように XRUIInputModule を使う
             var eventSystem = new GameObject("EventSystem");
             eventSystem.AddComponent<EventSystem>();
@@ -184,6 +191,17 @@ namespace VRClass.EditorTools
             Set(overlay, "inputMode", inputMode);
             Set(controller, "learnerPanel", panel);
             Set(controller, "hintPresenter", hint);
+            Set(controller, "keyPointHandler", keyPoint);
+            Set(relocator, "config", config);
+            Set(relocator, "sessionLog", sessionLog);
+            Set(gazeJudge, "head", cam != null ? cam.transform : null);
+            Set(gazeJudge, "config", config);
+            Set(gazeJudge, "sessionLog", sessionLog);
+            Set(gazeJudge, "relocator", relocator);
+            Set(gazeJudge, "headLogger", headLogger);
+            Set(keyPoint, "gazeJudge", gazeJudge);
+            Set(gazeDebug, "gazeJudge", gazeJudge);
+            Set(gazeDebug, "config", config);
             Set(hint, "hintMaterial", GetHintMaterial());
             Set(experimenter, "controller", controller);
             Set(experimenter, "config", config);

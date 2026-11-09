@@ -87,6 +87,56 @@ namespace VRClass.Interaction
         /// <summary>正しい位置に固定されているか（手で掴めない）。</summary>
         public bool IsLocked => CurrentSocket != null && CurrentSocket.IsLocked;
 
+        /// <summary>プログラムが動かしている最中か（再配置・強調）。重力を切って空中に止め、床からの復帰もしない。</summary>
+        public bool IsFloating { get; private set; }
+
+        /// <summary>部品の見た目の中心（Renderer の bounds の中心）。注視角の d に使う。</summary>
+        public Vector3 WorldCenter
+        {
+            get
+            {
+                Renderer r = GetComponentInChildren<Renderer>();
+                return r != null ? r.bounds.center : transform.position;
+            }
+        }
+
+        /// <summary>
+        /// 空中に止める（true）／物理に戻す（false）。true の間は Rigidbody を kinematic・重力なしに保つ。
+        /// 戻すときは、浮かせる前の kinematic・重力の設定に戻し、速度を 0 にする。
+        /// </summary>
+        public void SetFloating(bool floating)
+        {
+            var rb = GetComponent<Rigidbody>();
+            if (floating == IsFloating || rb == null)
+            {
+                IsFloating = floating;
+                return;
+            }
+
+            if (floating)
+            {
+                _floatSavedKinematic = rb.isKinematic;
+                _floatSavedGravity = rb.useGravity;
+                rb.isKinematic = true;
+                rb.useGravity = false;
+            }
+            else
+            {
+                rb.isKinematic = _floatSavedKinematic;
+                rb.useGravity = _floatSavedGravity;
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
+            }
+
+            IsFloating = floating;
+        }
+
+        private bool _floatSavedKinematic;
+        private bool _floatSavedGravity = true;
+
         // IXRSelectFilter / IXRHoverFilter
         public bool canProcess => isActiveAndEnabled;
 
@@ -151,7 +201,7 @@ namespace VRClass.Interaction
         /// <returns>戻したら true</returns>
         public bool ReturnHome(string reason)
         {
-            if (Grab.isSelected)
+            if (Grab.isSelected || IsFloating)
             {
                 return false;
             }
@@ -190,6 +240,19 @@ namespace VRClass.Interaction
 
         private void FixedUpdate()
         {
+            if (IsFloating)
+            {
+                // XRI がソケットから外したときに物理の設定を戻すことがあるので、浮かせている間は保ち続ける
+                var rb = GetComponent<Rigidbody>();
+                if (rb != null && !Grab.isSelected && !rb.isKinematic)
+                {
+                    rb.isKinematic = true;
+                    rb.useGravity = false;
+                }
+
+                return;
+            }
+
             float limit = config != null ? config.fallResetY : -1f;
             if (transform.position.y < limit)
             {
