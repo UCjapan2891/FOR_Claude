@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 781dc2b4e4948e443a6718c78fec8f29, type: 3}
+  m_Name: ExperimentConfig
+  m_EditorClassIdentifier: VRClass.Runtime::VRClass.Experiment.ExperimentConfig
+  gazeAngleThresholdDeg: 20
+  gazeHoldSec: 0.3
+  gazeTimeoutSec: 3
+  maxRelocations: 2
+  frontDistance: 0.6
+  relocateShiftStep: 0.1
+  relocateMaxShifts: 10
+  pullDurationSec: 1
+  minHeadDistance: 0.4
+  scaleDurationSec: 0.5
+  targetViewAngleDeg: 30
+  rotationSpeedDegPerSec: 45
+  useObservePhase: 0
+  observeDurationSec: 3
+  returnDurationSec: 1
+  telopFollowsPart: 1
+  socketAngleToleranceDeg: 15
+  socketSnapDistance: 0.05
+  useAutoTimers: 0
+  autoHintAfterSec: 60
+  autoCompleteAfterSec: 120
+  requireAllSocketsFilled: 1
+  participantsFileName: participants.csv
+  headLogHz: 10
+  timeExcludesPause: 0
