@@ -17,10 +17,11 @@
 
 ## 2. 環境
 
-- Unity：<!-- 例：Unity 6 LTS（6000.0.xx）。実際のバージョンを書く -->
-- エディタのパス：<!-- 例：C:\Program Files\Unity\Hub\Editor\6000.0.xx\Editor\Unity.exe -->
-- OS：<!-- Windows / macOS -->
-- XR：OpenXR ＋ XR Interaction Toolkit（XRI）。入力は Quest 3 のコントローラー
+- Unity：Unity 6.3 LTS（6000.3.28f1）
+- エディタのパス：C:\Program Files\Unity\Hub\Editor\6000.3.28f1\Editor\Unity.exe（Unity Hub の既定の場所。違う場所に入れた場合は直す）
+- OS：Windows
+- XR：OpenXR 1.17.1 ＋ XR Interaction Toolkit 3.5.1 ＋ Unity OpenXR: Meta 2.5.1。入力は Quest 3 のコントローラー
+- その他：Input System 1.20.1、URP 17.3.0、Test Framework 1.6.0、TextMesh Pro（uGUI 2.0.0 に同梱、Essentials 取り込み済み）
 - 分析：Python 3（pandas, numpy, scipy, matplotlib）
 
 パッケージのバージョンは推測しない。まず `Packages/manifest.json` を読み、入っているバージョンの API に合わせて書く。
