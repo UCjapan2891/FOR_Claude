@@ -96,11 +96,23 @@ namespace VRClass.EditorTools
                 return;
             }
 
-            ExperimentConfig config = ExperimentMenu.CreateConfig();
-            LessonData lesson = CreateLessonDataIfMissing();
-            TMP_FontAsset font = JapaneseFontSetup.FindJapaneseFontAsset();
+            // 先に asset を作って保存し、新しいシーンを開いた後に読み込み直す。
+            // （シーンを切り替えると、読み込んでいた asset が解放されて参照が切れることがあるため）
+            ExperimentMenu.CreateConfig();
+            CreateLessonDataIfMissing();
+            AssetDatabase.SaveAssets();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var config = AssetDatabase.LoadAssetAtPath<ExperimentConfig>(ExperimentMenu.ConfigAssetPath);
+            var lesson = AssetDatabase.LoadAssetAtPath<LessonData>(LessonPath);
+            TMP_FontAsset font = JapaneseFontSetup.FindJapaneseFontAsset();
+            if (config == null || lesson == null)
+            {
+                EditorUtility.DisplayDialog("Build Lesson Test Scene",
+                    $"設定か授業データを読み込めませんでした。\n{ExperimentMenu.ConfigAssetPath}\n{LessonPath}\nが Project ウィンドウにあるか確認してください。", "OK");
+                return;
+            }
 
             // 光と床・実験台
             var light = new GameObject("Directional Light").AddComponent<Light>();
@@ -169,6 +181,11 @@ namespace VRClass.EditorTools
             {
                 XRGrabInteractable grab = CreatePart(spec, partsRoot, inputMode, sessionLog);
                 CreateSocket(spec, socketsRoot, grab, config, sessionLog);
+            }
+
+            if (new SerializedObject(bootstrap).FindProperty("lesson").objectReferenceValue == null)
+            {
+                Debug.LogError("LessonTestBootstrap に授業データを割り当てられませんでした。");
             }
 
             EditorSceneManager.SaveScene(scene, ScenePath);

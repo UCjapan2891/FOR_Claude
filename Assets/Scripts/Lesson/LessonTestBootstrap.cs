@@ -32,6 +32,11 @@ namespace VRClass.Lesson
             // XRI のソケットが最初の部品を掴むまで1フレーム待つ（その socket_ok は記録しない）
             yield return null;
 
+            if (!CheckReferences())
+            {
+                yield break;
+            }
+
             Assignment assignment = ParticipantAssignment.Assign(participantId);
             LessonSession session = assignment.First.Lesson == lesson.lessonId ? assignment.First : assignment.Second;
 
@@ -52,6 +57,24 @@ namespace VRClass.Lesson
             string input = inputMode != null ? inputMode.Current.ToString() : "unknown";
             controller.StartLesson(lesson, $"test=true;order={(session.Lesson == assignment.First.Lesson ? 1 : 2)};input={input}");
             Debug.Log($"授業を開始しました：参加者 {participantId}（{session}）。ログ：{LogPaths.ParticipantDirectory(root, participantId)}");
+        }
+
+        /// <summary>インスペクターの参照が空なら、どれが空かを Console に出して授業を始めない。</summary>
+        private bool CheckReferences()
+        {
+            string missing = string.Empty;
+            if (lesson == null) missing += " Lesson";
+            if (config == null) missing += " Config";
+            if (controller == null) missing += " Controller";
+            if (sessionLog == null) missing += " Session Log";
+            if (missing.Length == 0)
+            {
+                return true;
+            }
+
+            Debug.LogError($"LessonTestBootstrap の参照が空です：{missing}。" +
+                           "Tools → Experiment → Build Lesson Test Scene でシーンを作り直すか、インスペクターで割り当ててください。", this);
+            return false;
         }
 
         private void OnFinished()
