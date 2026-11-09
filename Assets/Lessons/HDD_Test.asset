@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 417e999895b6f25408661aa84d1d7bc3, type: 3}
+  m_Name: HDD_Test
+  m_EditorClassIdentifier: VRClass.Runtime::VRClass.Lesson.LessonData
+  lessonId: 0
+  stages:
+  - stageName: "\u30D7\u30E9\u30C3\u30BF\u3092\u4ED8\u3051\u308B"
+    targetPartId: platter
+    narrationClip: {fileID: 0}
+    commentaryClip: {fileID: 0}
+    telopText: 
+    completion: 1
+    isKeyPoint: 0
+  - stageName: "\u30A2\u30FC\u30E0\u306B\u89E6\u308C\u308B"
+    targetPartId: arm
+    narrationClip: {fileID: 0}
+    commentaryClip: {fileID: 0}
+    telopText: 
+    completion: 2
+    isKeyPoint: 0
+  - stageName: "\u30A2\u30FC\u30E0\u3092\u4ED8\u3051\u308B"
+    targetPartId: arm
+    narrationClip: {fileID: 0}
+    commentaryClip: {fileID: 0}
+    telopText: "\u30A2\u30FC\u30E0\u306F\u30D7\u30E9\u30C3\u30BF\u306E\u4E0A\u3092\u52D5\u304F\uFF08\u4EEE\uFF09"
+    completion: 1
+    isKeyPoint: 1
+  - stageName: "\u30AB\u30D0\u30FC\u3092\u4ED8\u3051\u308B"
+    targetPartId: cover
+    narrationClip: {fileID: 0}
+    commentaryClip: {fileID: 0}
+    telopText: "\u30AB\u30D0\u30FC\u3067\u4E2D\u3092\u5BC6\u9589\u3059\u308B\uFF08\u4EEE\uFF09"
+    completion: 1
+    isKeyPoint: 1
+  - stageName: "\u307E\u3068\u3081"
+    targetPartId: 
+    narrationClip: {fileID: 0}
+    commentaryClip: {fileID: 0}
+    telopText: 
+    completion: 3
+    isKeyPoint: 0
