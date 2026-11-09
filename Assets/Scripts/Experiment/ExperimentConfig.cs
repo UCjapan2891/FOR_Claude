@@ -70,6 +70,12 @@ namespace VRClass.Experiment
         [Tooltip("ソケットに吸着する距離（m）")]
         [Min(0f)] public float socketSnapDistance = 0.05f;
 
+        [Tooltip("正しい位置に置いた部品を固定して動かせなくするか（下の部品が先に置かれていないときは固定しない）")]
+        public bool lockPlacedParts = true;
+
+        [Tooltip("部品がこの高さ（m）より下に落ちたら、床に触れたときと同じく机の上の初期位置へ戻す")]
+        public float fallResetY = -1f;
+
         [Header("5.3 自動タイマー")]
         [Tooltip("一定時間でヒント・自動完了するタイマーを使うか")]
         public bool useAutoTimers = false;

@@ -19,7 +19,7 @@ namespace VRClass.EditorTools
 {
     /// <summary>
     /// Tools/Experiment/Build Lesson Test Scene：
-    /// 仮の部品3つで HDD の授業を動かすテスト用のシーン（Assets/Scenes/LessonTest.unity）と
+    /// 仮の部品3つ（机の上に分解して並べた状態から組み立てる）で HDD の授業を動かすテスト用のシーン（Assets/Scenes/LessonTest.unity）と
     /// 授業データ（Assets/Lessons/HDD_Test.asset）を作る。
     /// ここにある寸法・位置はテスト用のシーンの配置で、研究のパラメータではない。
     /// </summary>
@@ -33,7 +33,8 @@ namespace VRClass.EditorTools
         // テスト用シーンの配置（m）
         private const float TableTopY = 0.8f;
         private const float TableCenterZ = 0.6f;
-        private const float PartsZ = 0.5f;
+        private const float PartsZ = 0.55f;   // 組み立てる場所（ソケット）
+        private const float LayoutZ = 0.42f;  // 分解した部品を並べる列（手前）
 
         // 部品の識別名（HDD_Test.asset の targetPartId と一致させる）
         public const string CoverId = "cover";
@@ -45,7 +46,9 @@ namespace VRClass.EditorTools
             public string Id;
             public string Label;
             public PrimitiveType Shape;
-            public Vector3 Position;
+            public Vector3 Position;       // ソケット（組み立てた位置）
+            public Vector3 LayoutPosition; // 初期位置（机の上に分解して並べた位置）
+            public string[] Prerequisites; // 先に置くべきソケット（下の部品）
             public Vector3 Scale;
             public Color Color;
             public SymmetryAxis Symmetry;
@@ -57,18 +60,21 @@ namespace VRClass.EditorTools
             {
                 Id = PlatterId, Label = "プラッタ", Shape = PrimitiveType.Cylinder,
                 Position = new Vector3(-0.03f, TableTopY + 0.01f, PartsZ), Scale = new Vector3(0.095f, 0.0025f, 0.095f),
+                LayoutPosition = new Vector3(-0.38f, TableTopY + 0.0035f, LayoutZ), Prerequisites = new string[0],
                 Color = new Color(0.75f, 0.75f, 0.8f), Symmetry = SymmetryAxis.Y,
             },
             new PartSpec
             {
                 Id = ArmId, Label = "アーム", Shape = PrimitiveType.Cube,
                 Position = new Vector3(0.06f, TableTopY + 0.025f, PartsZ), Scale = new Vector3(0.10f, 0.012f, 0.02f),
+                LayoutPosition = new Vector3(-0.22f, TableTopY + 0.0065f, LayoutZ), Prerequisites = new[] { PlatterId },
                 Color = new Color(0.2f, 0.45f, 0.9f), Symmetry = SymmetryAxis.None,
             },
             new PartSpec
             {
                 Id = CoverId, Label = "カバー", Shape = PrimitiveType.Cube,
                 Position = new Vector3(0f, TableTopY + 0.05f, PartsZ), Scale = new Vector3(0.20f, 0.01f, 0.15f),
+                LayoutPosition = new Vector3(0.30f, TableTopY + 0.0055f, LayoutZ), Prerequisites = new[] { PlatterId, ArmId },
                 Color = new Color(0.55f, 0.55f, 0.55f), Symmetry = SymmetryAxis.None,
             },
         };
@@ -119,7 +125,8 @@ namespace VRClass.EditorTools
             light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            CreateBox("Floor", new Vector3(0f, -0.05f, 0f), new Vector3(6f, 0.1f, 6f), GetMaterial("Floor", new Color(0.8f, 0.8f, 0.78f)));
+            GameObject floor = CreateBox("Floor", new Vector3(0f, -0.05f, 0f), new Vector3(6f, 0.1f, 6f), GetMaterial("Floor", new Color(0.8f, 0.8f, 0.78f)));
+            floor.AddComponent<FloorZone>(); // 部品が触れたら机の上に戻す
             CreateBox("Table", new Vector3(0f, TableTopY / 2f, TableCenterZ), new Vector3(1.2f, TableTopY, 0.6f), GetMaterial("Table", new Color(0.15f, 0.17f, 0.25f)));
             CreateBox("HDD Base", new Vector3(0f, TableTopY + 0.0025f, PartsZ), new Vector3(0.22f, 0.005f, 0.17f), GetMaterial("Base", new Color(0.3f, 0.3f, 0.3f)));
 
@@ -142,11 +149,13 @@ namespace VRClass.EditorTools
             narration.playOnAwake = false;
             narration.spatialBlend = 0f;
             var controller = lessonGo.AddComponent<LessonController>();
+            var assemblyLock = lessonGo.AddComponent<AssemblyLock>();
             var bootstrap = lessonGo.AddComponent<LessonTestBootstrap>();
             var overlay = lessonGo.AddComponent<LessonDebugOverlay>();
             LessonMessageView message = CreateMessageView(font);
 
             Set(inputMode, "config", config);
+            Set(assemblyLock, "config", config);
             Set(headLogger, "head", cam != null ? cam.transform : null);
             Set(headLogger, "config", config);
             Set(controller, "config", config);
@@ -179,8 +188,8 @@ namespace VRClass.EditorTools
             var socketsRoot = new GameObject("Sockets").transform;
             foreach (PartSpec spec in Parts)
             {
-                XRGrabInteractable grab = CreatePart(spec, partsRoot, inputMode, sessionLog);
-                CreateSocket(spec, socketsRoot, grab, config, sessionLog);
+                CreatePart(spec, partsRoot, inputMode, sessionLog, config);
+                CreateSocket(spec, socketsRoot, config, sessionLog);
             }
 
             if (new SerializedObject(bootstrap).FindProperty("lesson").objectReferenceValue == null)
@@ -195,12 +204,12 @@ namespace VRClass.EditorTools
                       (font == null ? "\n日本語フォントがないため、日本語は □ で表示されます（Tools/Experiment/Setup Japanese Font）。" : string.Empty));
         }
 
-        private static XRGrabInteractable CreatePart(PartSpec spec, Transform parent, InputModeController inputMode, SessionLog sessionLog)
+        private static XRGrabInteractable CreatePart(PartSpec spec, Transform parent, InputModeController inputMode, SessionLog sessionLog, ExperimentConfig config)
         {
             GameObject go = GameObject.CreatePrimitive(spec.Shape);
             go.name = $"Part {spec.Label} ({spec.Id})";
             go.transform.SetParent(parent, false);
-            go.transform.SetPositionAndRotation(spec.Position, Quaternion.identity);
+            go.transform.SetPositionAndRotation(spec.LayoutPosition, Quaternion.identity); // 分解した状態で机に置く
             go.transform.localScale = spec.Scale;
             go.GetComponent<Renderer>().sharedMaterial = GetMaterial("Part_" + spec.Id, spec.Color);
 
@@ -226,10 +235,11 @@ namespace VRClass.EditorTools
             SetEnum(part, "symmetryAxis", (int)spec.Symmetry);
             Set(part, "inputMode", inputMode);
             Set(part, "sessionLog", sessionLog);
+            Set(part, "config", config);
             return grab;
         }
 
-        private static void CreateSocket(PartSpec spec, Transform parent, XRGrabInteractable startingPart, ExperimentConfig config, SessionLog sessionLog)
+        private static void CreateSocket(PartSpec spec, Transform parent, ExperimentConfig config, SessionLog sessionLog)
         {
             var go = new GameObject($"Socket {spec.Label} ({spec.Id})");
             go.transform.SetParent(parent, false);
@@ -240,7 +250,6 @@ namespace VRClass.EditorTools
             trigger.radius = config.socketSnapDistance;
 
             var socket = go.AddComponent<XRSocketInteractor>();
-            socket.startingSelectedInteractable = startingPart;
             socket.showInteractableHoverMeshes = true;
 
             var partSocket = go.AddComponent<PartSocket>();
@@ -248,6 +257,7 @@ namespace VRClass.EditorTools
             Set(partSocket, "acceptedPartId", spec.Id);
             Set(partSocket, "config", config);
             Set(partSocket, "sessionLog", sessionLog);
+            SetStrings(partSocket, "prerequisiteSocketIds", spec.Prerequisites);
         }
 
         private static LessonMessageView CreateMessageView(TMP_FontAsset font)
@@ -284,28 +294,39 @@ namespace VRClass.EditorTools
             return view;
         }
 
-        private static LessonData CreateLessonDataIfMissing()
+        private static void CreateLessonDataIfMissing()
         {
             var existing = AssetDatabase.LoadAssetAtPath<LessonData>(LessonPath);
+            if (existing != null &&
+                !EditorUtility.DisplayDialog("Build Lesson Test Scene",
+                    LessonPath + " を初期の内容（組み立て中心の5段階）で上書きしますか？\n手で直した内容は消えます。", "上書きする", "そのまま使う"))
+            {
+                return;
+            }
+
+            // 組み立てが中心。触れる段階は、まだ置いていない（固定されていない）部品を対象にする
+            var stages = new List<StageData>
+            {
+                Stage("プラッタを付ける", PlatterId, CompletionType.Attach, false, ""),
+                Stage("アームに触れる", ArmId, CompletionType.Touch, false, ""),
+                Stage("アームを付ける", ArmId, CompletionType.Attach, true, "アームはプラッタの上を動く（仮）"),
+                Stage("カバーを付ける", CoverId, CompletionType.Attach, true, "カバーで中を密閉する（仮）"),
+                Stage("まとめ", "", CompletionType.None, false, ""),
+            };
+
             if (existing != null)
             {
-                return existing; // 手で直した内容を上書きしない
+                existing.lessonId = LessonId.HDD;
+                existing.stages = stages;
+                EditorUtility.SetDirty(existing);
+                return;
             }
 
             EnsureFolder("Assets/Lessons");
             var data = ScriptableObject.CreateInstance<LessonData>();
             data.lessonId = LessonId.HDD;
-            data.stages = new List<StageData>
-            {
-                Stage("カバーを外す", CoverId, CompletionType.Detach, false, ""),
-                Stage("アームを外す", ArmId, CompletionType.Detach, true, "アーム：先端の磁気ヘッドで読み書きする（仮）"),
-                Stage("プラッタに触れる", PlatterId, CompletionType.Touch, false, ""),
-                Stage("アームを付ける", ArmId, CompletionType.Attach, true, "アームはプラッタの上を動く（仮）"),
-                Stage("カバーを付ける", CoverId, CompletionType.Attach, false, ""),
-                Stage("まとめ", "", CompletionType.None, false, ""),
-            };
+            data.stages = stages;
             AssetDatabase.CreateAsset(data, LessonPath);
-            return data;
         }
 
         private static StageData Stage(string name, string target, CompletionType completion, bool key, string telop)
@@ -393,6 +414,19 @@ namespace VRClass.EditorTools
             var so = new SerializedObject(target);
             SerializedProperty p = so.FindProperty(field) ?? throw new System.ArgumentException($"{target.GetType().Name} に {field} がありません。");
             p.stringValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetStrings(Object target, string field, string[] values)
+        {
+            var so = new SerializedObject(target);
+            SerializedProperty p = so.FindProperty(field) ?? throw new System.ArgumentException($"{target.GetType().Name} に {field} がありません。");
+            p.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++)
+            {
+                p.GetArrayElementAtIndex(i).stringValue = values[i];
+            }
+
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

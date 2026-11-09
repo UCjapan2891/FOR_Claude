@@ -27,6 +27,9 @@ namespace VRClass.Interaction
         [Tooltip("受け付ける部品の partId")]
         [SerializeField] private string acceptedPartId;
 
+        [Tooltip("先に置くべきソケットの socketId（この部品の下にある部品）。全部固定済みのときだけ、この部品も固定する")]
+        [SerializeField] private string[] prerequisiteSocketIds = new string[0];
+
         [SerializeField] private ExperimentConfig config;
         [SerializeField] private SessionLog sessionLog;
 
@@ -45,6 +48,11 @@ namespace VRClass.Interaction
 
         /// <summary>正しい部品が付いているか。</summary>
         public bool IsFilledCorrectly => CurrentPart != null && CurrentPart.PartId == acceptedPartId;
+
+        public System.Collections.Generic.IReadOnlyList<string> PrerequisiteSocketIds => prerequisiteSocketIds;
+
+        /// <summary>付いている部品を固定しているか（手で外せない）。AssemblyLock が設定する。</summary>
+        public bool IsLocked { get; internal set; }
 
         public event Action<PartSocket, PartInteraction> Attached;
 
@@ -145,6 +153,7 @@ namespace VRClass.Interaction
             if (CurrentPart == part)
             {
                 CurrentPart = null;
+                IsLocked = false;
             }
 
             if (part.CurrentSocket == this)

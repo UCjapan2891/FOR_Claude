@@ -5,6 +5,7 @@ using UnityEngine.XR.Interaction.Toolkit.Filtering;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using VRClass.Core;
+using VRClass.Experiment;
 using VRClass.Logging;
 
 namespace VRClass.Interaction
@@ -31,6 +32,7 @@ namespace VRClass.Interaction
 
         [SerializeField] private InputModeController inputMode;
         [SerializeField] private SessionLog sessionLog;
+        [SerializeField] private ExperimentConfig config;
 
         private XRGrabInteractable _grab;
         private Vector3 _homePosition;
@@ -79,6 +81,12 @@ namespace VRClass.Interaction
         /// <summary>手から離れた。</summary>
         public event Action<PartInteraction> Released;
 
+        /// <summary>初期位置へ戻した（床に落ちた・リセット）。</summary>
+        public event Action<PartInteraction> ReturnedHome;
+
+        /// <summary>正しい位置に固定されているか（手で掴めない）。</summary>
+        public bool IsLocked => CurrentSocket != null && CurrentSocket.IsLocked;
+
         // IXRSelectFilter / IXRHoverFilter
         public bool canProcess => isActiveAndEnabled;
 
@@ -114,6 +122,11 @@ namespace VRClass.Interaction
                 return true;
             }
 
+            if (IsLocked)
+            {
+                return false; // 正しい位置に固定済み
+            }
+
             if (!IsGrabbable)
             {
                 return alreadyHolding && !ReleaseHeld;
@@ -129,6 +142,59 @@ namespace VRClass.Interaction
         {
             _grab = GetComponent<XRGrabInteractable>();
             RememberHome();
+        }
+
+        /// <summary>
+        /// 机の上の初期位置へ戻す（床に落ちたとき、SPEC 5.2 のリセット）。
+        /// 手に持っているとき・ソケットに付いているときは何もしない。reset をログに記録する。
+        /// </summary>
+        /// <returns>戻したら true</returns>
+        public bool ReturnHome(string reason)
+        {
+            if (Grab.isSelected)
+            {
+                return false;
+            }
+
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null && !rb.isKinematic)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+
+            if (rb != null)
+            {
+                rb.position = _homePosition;
+                rb.rotation = _homeRotation;
+            }
+
+            transform.SetPositionAndRotation(_homePosition, _homeRotation);
+
+            if (sessionLog != null)
+            {
+                sessionLog.Log(LogEvent.Reset, partId, "reason=" + reason);
+            }
+
+            ReturnedHome?.Invoke(this);
+            return true;
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (collision.collider.GetComponentInParent<FloorZone>() != null)
+            {
+                ReturnHome("floor");
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            float limit = config != null ? config.fallResetY : -1f;
+            if (transform.position.y < limit)
+            {
+                ReturnHome("fell");
+            }
         }
 
         private void OnEnable()
