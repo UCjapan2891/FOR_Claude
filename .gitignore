@@ -24,3 +24,8 @@ __pycache__/
 .venv/
 # 本番ログ（個人データ）はコミットしない
 /logs/
+
+# 購入した Asset Store のアセット（標準 Unity Asset Store EULA：公開リポジトリへの再配布は不可）
+# 取り込んだら、Unity の Project ウィンドウで Assets/ThirdParty/ の中へ移す
+/[Aa]ssets/ThirdParty/
+/[Aa]ssets/ThirdParty.meta
