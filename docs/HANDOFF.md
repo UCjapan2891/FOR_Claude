@@ -18,7 +18,7 @@
 | 項目 | 内容 |
 |---|---|
 | リポジトリ | `UCjapan2891/FOR_Claude`（**公開リポジトリ**） |
-| 作業ブランチ | `claude/kind-franklin-sxrgoi`（ここにだけコミット・プッシュする） |
+| 作業ブランチ | `claude/new-session-b2lbou`（ここにだけコミット・プッシュする。会話ごとに変わるので、指示されたブランチを使う） |
 | Unity | 6.3 LTS（6000.3.28f1）、URP、XRI 3.5.1、OpenXR 1.17.1、Unity OpenXR: Meta 2.5.1、Input System 1.20.1 |
 | ユーザーの PC | Windows。プロジェクトは `C:\Users\hayat\OneDrive\デスクトップ\VR_Class`（OneDrive の外への移動を勧めたが未実施）。GitHub Desktop も使う |
 | HMD | **手元にない**。HMD が必要な確認は `docs/HMD_CHECKLIST.md` に後回し |
