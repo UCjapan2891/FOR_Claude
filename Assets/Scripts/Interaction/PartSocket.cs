@@ -144,7 +144,7 @@ namespace VRClass.Interaction
             // 別のソケットに付いていれば外す
             if (part.CurrentSocket != null && part.CurrentSocket != this)
             {
-                manager.SelectExit(part.CurrentSocket.Socket, part.Grab);
+                part.CurrentSocket.Release(part);
             }
 
             Transform attach = Socket.attachTransform != null ? Socket.attachTransform : transform;

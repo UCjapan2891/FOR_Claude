@@ -547,11 +547,7 @@ namespace VRClass.Lesson
                 }
                 else if (stage.completion == CompletionType.Detach && part.CurrentSocket != null)
                 {
-                    var manager = part.CurrentSocket.Socket.interactionManager;
-                    if (manager != null)
-                    {
-                        manager.SelectExit(part.CurrentSocket.Socket, part.Grab); // 外れた時点で op_complete まで進む
-                    }
+                    part.CurrentSocket.Release(part); // 外れた時点で op_complete まで進む
                 }
             }
 
