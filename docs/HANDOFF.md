@@ -47,13 +47,21 @@
 | 3 | 部品操作・授業の進行 | 済み | 済み |
 | 4 | 学習者パネル・実験者の操作 | 済み（XRI の使用禁止 API によるコンパイルエラーを修正済み） | **結果の報告待ち** |
 | 5 | 注視判定・再配置 | 済み | **結果の報告待ち** |
-| 6 | 空間的強調・テロップ | **一部**：強調の動き（`SpatialEmphasis`）と発表用デモのみ | デモは動画で動作を確認 |
+| 6 | 空間的強調・テロップ | 済み（EmphasisController・TelopView・解説音声・emphasis_* の記録） | **未**（コンパイルとテスト用シーンでの確認をお願いする） |
 | 7 | 教室・部品の取り込み | **一部**：教室アセットを取り込み済み（シーンへの配置はまだ）。HDD のモデル未決定 | — |
 | 8 | 2本の授業を通す・練習・実機の準備 | 未 | — |
 | 9 | 分析スクリプト | 未 | — |
 
-- Unity の外での自動テスト：162 件すべて成功（Unity の Test Runner では、設定の初期値のテスト2件を加えて 164 件の見込み）。
-- GitHub 上の最新：`d05cb14`（理解度テストの案）。**ユーザーの PC 側の強調デモのシーン（`Assets/Scenes/EmphasisDemo.unity`）と `.meta` はまだプッシュされていない**。
+- Unity の外での自動テスト：184 件すべて成功（Unity の Test Runner では、設定の初期値のテスト2件を加えて 186 件の見込み）。
+- **ユーザーの PC 側の強調デモのシーン（`Assets/Scenes/EmphasisDemo.unity`）と `.meta`、段階6で増えた .cs の `.meta` はまだプッシュされていない**。
+
+**段階6で決めた実装の細部（研究の設計は変えていない）**
+- 何をするかは `Core/EmphasisPlan.ChooseMode`：条件2で注視できたときだけ空間的強調、ほかはテロップのみで Ttotal 停止。条件の分岐は EmphasisController とこの関数だけ。
+- 段階は `EmphasisTimeline` で「強調の開始からの経過時間1本」で決める（段階ごとに時間を数え直さない）。条件1と2が同じフレーム数で終わる。
+- 再配置した部品の強調は、今の位置から引き寄せ、④復帰で**再配置する前の位置**へ戻す（`SpatialEmphasis` の `homePosition`）。
+- ログの detail：emphasis_start `mode=spatial|telop;gaze=ok|fail;total=10.500`、emphasis_phase `phase=pull|scale|rotate|observe|return`（空間的強調のときだけ）、emphasis_end `elapsed=…`（一時停止・中断なら `;cancelled`）。解説音声は audio_start `commentary;clip=…`、audio_end `commentary`（Ttotal で切れたら `commentary;cut`、一時停止なら `commentary;cancelled`）。
+- テロップの位置：部品の上端から `telopGapAbovePart`（0.03 m、表示の調整用で SPEC にない値）上。
+- テスト用シーンの条件は参加者番号の割り当てで決まる：HDD は 9001 → 条件1、9003 → 条件2（LessonTestBootstrap の participantId を変える）。
 
 ## 4. これまでに決めたこと（要点。詳細は SPEC の 9 章）
 
@@ -67,9 +75,9 @@
 - 教室：Asset Store「学校科学教室」（Japanese School Science Classroom、NIMIKKO、v1.0、標準 Unity Asset Store EULA）。**公開リポジトリには置かない**：`Assets/Nimikko_JapaneseSchool_ScienceRoom/` と `Assets/ThirdParty/` は `.gitignore` で除外。
 - テスト・質問紙はアプリの外（PC）で回答する。
 
-## 5. 決まったが SPEC にまだ反映していないこと（要対応）
+## 5. 中間報告（3rd stage）で変えたこと（2026-11-10 に SPEC 1章・7章・9章へ反映済み）
 
-中間報告（3rd stage）で次のように変えた。**SPEC 1章・7章をこれに合わせて直す必要がある**（ユーザーの了承を得てから）。
+SSQ は実験前、休憩なしは中間報告の時間配分に合わせた（ユーザーに要確認。違えば SPEC を直す）。
 - 1人あたり**約30分**（説明・同意 2、参加者情報・SSQ 1、練習 2、授業 約5.5 ×2、直後 6.5 ×2、終了後 1）。
 - **事前テストなし**（伸び G を使わず、直後の正答率で比べる）。参加者情報で「HDD・HMD の中を学んだことがあるか」を聞く。
 - 理解度テストは授業1本につき**6問**（記憶2・空間理解3・応用1）。空間理解は要点 A・B・C に1問ずつ。
@@ -110,12 +118,10 @@
 
 ## 8. 次にやること（おすすめの順）
 
-1. ユーザーの PC で、強調デモのシーンと `.meta` をコミット・プッシュしてもらう。段階4・5の PC での確認結果を聞く。
-2. 5 章の内容で SPEC 1章・7章を直す（了承を得てから）。
-3. 段階6の残り：EmphasisController（条件1は Ttotal 停止、条件2は SpatialEmphasis、gaze_fail ならテロップのみ）、テロップ（TelopView、World Space、`telopFollowsPart`）、解説音声、emphasis_start / emphasis_phase / emphasis_end の記録、条件1と2の合計時間が同じであることのテスト。GazeKeyPointHandler の「段階6：ここで強調」の所につなぐ。
-4. 段階7：教室の組み込み（保留中の計画）と HDD のモデルの取り込み。
-5. 段階8：ExperimentManager（番号入力 → 割り当て → 練習 → 1本目 → 2本目 → 終了）、本番の HDD.asset / HMD.asset。
-6. 段階9：分析スクリプト（`analysis/`、架空データ 20 人分で動作確認。SSQ・WWL の表は `analysis/tables/` にユーザーが用意する）。
+1. ユーザーの PC で、強調デモのシーンと `.meta`（段階6の新しい .cs の分も）をコミット・プッシュしてもらう。段階4・5・6の PC での確認結果を聞く（段階6は Build Lesson Test Scene を作り直してから）。
+2. 段階7：教室の組み込み（保留中の計画）と HDD のモデルの取り込み。
+3. 段階8：ExperimentManager（番号入力 → 割り当て → 練習 → 1本目 → 2本目 → 終了）、本番の HDD.asset / HMD.asset。
+4. 段階9：分析スクリプト（`analysis/`、架空データ 20 人分で動作確認。SSQ・WWL の表は `analysis/tables/` にユーザーが用意する）。
 
 ## 9. 作ったもの（リポジトリの外）
 
