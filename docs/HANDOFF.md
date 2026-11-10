@@ -39,6 +39,19 @@
 - 値は `ExperimentConfig` に集める。条件1・2の違いは `EmphasisController` の中だけに閉じ込める。
 - 最後に「エディタ上で確認すること」と「HMD で確認すること」を分けて伝える。
 
+## 2.5 新しい環境（別の PC）の準備
+
+**必ず入れ直すもの（Git に入っていない）**
+- Unity 6.3 LTS（6000.3.28f1）＋ Android Build Support（OpenJDK、Android SDK & NDK Tools）
+- 教室のアセット：Window → Package Manager → My Assets（購入した Unity アカウント）→ Download → Import。取り込み先 `Assets/Nimikko_JapaneseSchool_ScienceRoom/` は `.gitignore` で除外済み
+- 教室がピンク色なら：Window → Rendering → Render Pipeline Converter → Built-in to URP → Material Upgrade（変換結果も Git 対象外なので PC ごとに行う）
+- HDD のモデル（決まったら）：`Assets/ThirdParty/` に置く
+- participants.csv：Tools → Experiment → Create participants.csv Template（persistentDataPath に置く）
+
+**何もしなくてよいもの（Git に入っている）**：パッケージ（manifest.json から自動）、XRI の Starter Assets、TMP Essentials、日本語フォント、ExperimentConfig、テスト用シーン、HDD_Test.asset、材質
+
+**作業によって必要なもの**：GitHub Desktop、Meta Horizon Link（HMD の確認。OpenXR のランタイムを Link にする）、VOICEVOX（音声）、Python 3＋pandas・numpy・scipy・matplotlib（分析）
+
 ## 3. 進み具合（PROMPTS.md の段階）
 
 | 段階 | 内容 | プログラム | PC での確認 |
