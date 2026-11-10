@@ -29,3 +29,6 @@ __pycache__/
 # 取り込んだら、Unity の Project ウィンドウで Assets/ThirdParty/ の中へ移す
 /[Aa]ssets/ThirdParty/
 /[Aa]ssets/ThirdParty.meta
+# 学校科学教室（NIMIKKO、Asset Store）：取り込んだ場所のまま除外する
+/[Aa]ssets/Nimikko_JapaneseSchool_ScienceRoom/
+/[Aa]ssets/Nimikko_JapaneseSchool_ScienceRoom.meta

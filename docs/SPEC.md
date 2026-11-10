@@ -19,7 +19,7 @@
 ### 1.1 教室（理科実験室）
 
 - 受講者は実験台の1つの前に立つ（または座る。予備実験で決める）。授業の部品はその実験台の天板に置く
-- 教室のモデルは標準 Unity Asset Store EULA（Single Entity、購入者個人のライセンス）。リポジトリが公開なので、アセットは `Assets/ThirdParty/` に置いて Git の対象から外す（`.gitignore`）。他の人がプロジェクトを開くには、その人もアセットの購入が必要
+- 教室のモデルは標準 Unity Asset Store EULA（Single Entity、購入者個人のライセンス）。リポジトリが公開なので、アセット（`Assets/Nimikko_JapaneseSchool_ScienceRoom/`、今後の購入アセットは `Assets/ThirdParty/`）は Git の対象から外す（`.gitignore`）。他の人がプロジェクトを開くには、その人もアセットの購入が必要
 - 論文の実験環境には、アセット名・制作者・バージョンを書く
 - 部品を置く天板と床には、教室のメッシュとは別に平らな Collider（BoxCollider など）を重ねる。教室のメッシュには当たり判定を付けない
 - 仮想の実験台の高さと、受講者の床の高さを合わせる（Editor か起動時のキャリブレーションで調整できるようにする）
