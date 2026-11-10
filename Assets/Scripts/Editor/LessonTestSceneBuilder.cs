@@ -293,9 +293,21 @@ namespace VRClass.EditorTools
 
             // 分解した状態で机に並べた仮の部品。物理で動き、机やほかの部品をすり抜けない
             var partsRoot = new GameObject("Parts").transform;
+            var slotsRoot = new GameObject("Slots").transform;
             var targets = new List<Transform>();
-            foreach (PartSpec spec in Parts)
+            var slots = new List<Transform>();
+
+            // 最初の強調の対象をアーム（青）にするため、アーム → プラッタ → カバー の順に作る
+            var specs = new List<PartSpec>(Parts);
+            specs.Sort((a, b) => Order(a.Id).CompareTo(Order(b.Id)));
+            foreach (PartSpec spec in specs)
             {
+                // 置く正しい場所（組み立てた位置）
+                var slot = new GameObject($"Slot {spec.Label}").transform;
+                slot.SetParent(slotsRoot, false);
+                slot.SetPositionAndRotation(spec.Position, Quaternion.identity);
+                slots.Add(slot);
+
                 GameObject go = GameObject.CreatePrimitive(spec.Shape);
                 go.name = spec.Label;
                 go.transform.SetParent(partsRoot, false);
@@ -322,12 +334,25 @@ namespace VRClass.EditorTools
                 targets.Add(go.transform);
             }
 
-            // 最初の対象はアーム（青）
-            targets.Sort((a, b) => (a.name == "アーム" ? 0 : 1).CompareTo(b.name == "アーム" ? 0 : 1));
+            // 先に置くべき部品（下の部品）の番号。プラッタ → アーム → カバー の順に重なる
+            var prerequisites = new List<string>();
+            foreach (PartSpec spec in specs)
+            {
+                var pre = new List<string>();
+                foreach (string id in spec.Prerequisites)
+                {
+                    pre.Add(specs.FindIndex(x => x.Id == id).ToString());
+                }
+
+                prerequisites.Add(string.Join(",", pre));
+            }
 
             PartInfoBoard board = CreateBlackboard(JapaneseFontSetup.FindJapaneseFontAsset());
 
-            var demo = new GameObject("Emphasis Demo").AddComponent<EmphasisDemo>();
+            var demoGo = new GameObject("Emphasis Demo");
+            var guide = demoGo.AddComponent<HintPresenter>();
+            Set(guide, "hintMaterial", GetHintMaterial());
+            var demo = demoGo.AddComponent<EmphasisDemo>();
             var so = new SerializedObject(demo);
             SerializedProperty list = so.FindProperty("targets");
             list.arraySize = targets.Count;
@@ -339,6 +364,20 @@ namespace VRClass.EditorTools
             so.FindProperty("head").objectReferenceValue = camGo.transform;
             so.FindProperty("config").objectReferenceValue = config;
             so.FindProperty("board").objectReferenceValue = board;
+            so.FindProperty("guide").objectReferenceValue = guide;
+            SerializedProperty slotList = so.FindProperty("slots");
+            SerializedProperty symList = so.FindProperty("symmetry");
+            SerializedProperty preList = so.FindProperty("prerequisites");
+            slotList.arraySize = slots.Count;
+            symList.arraySize = specs.Count;
+            preList.arraySize = specs.Count;
+            for (int i = 0; i < specs.Count; i++)
+            {
+                slotList.GetArrayElementAtIndex(i).objectReferenceValue = slots[i];
+                symList.GetArrayElementAtIndex(i).enumValueIndex = (int)specs[i].Symmetry;
+                preList.GetArrayElementAtIndex(i).stringValue = prerequisites[i];
+            }
+
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, EmphasisDemoScenePath);
@@ -404,6 +443,16 @@ namespace VRClass.EditorTools
             }
 
             return text;
+        }
+
+        private static int Order(string id)
+        {
+            switch (id)
+            {
+                case ArmId: return 0;
+                case PlatterId: return 1;
+                default: return 2;
+            }
         }
 
         // デモ用の仮の説明。本番の授業では教材の原稿に合わせて直す

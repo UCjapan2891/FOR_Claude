@@ -31,6 +31,12 @@ namespace VRClass.Interaction
             Set(description.displayName, description.role);
         }
 
+        /// <summary>任意の見出しと本文を出す（「組み立て完了」など）。</summary>
+        public void ShowMessage(string heading, string message)
+        {
+            Set(heading, message);
+        }
+
         public void ShowDefault()
         {
             Set(DefaultTitle, DefaultBody);

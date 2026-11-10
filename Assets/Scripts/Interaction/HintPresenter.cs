@@ -31,12 +31,21 @@ namespace VRClass.Interaction
         /// <summary>部品の形を、場所 at（ソケットなど）に出す。at が null なら部品に重ねて追いかける。</summary>
         public void Show(PartInteraction part, Transform at)
         {
-            if (part == null)
+            if (part != null)
+            {
+                Show(part.transform, at);
+            }
+        }
+
+        /// <summary>source の形を、場所 at に出す。at が null なら source に重ねて追いかける。</summary>
+        public void Show(Transform source, Transform at)
+        {
+            if (source == null)
             {
                 return;
             }
 
-            var meshFilter = part.GetComponentInChildren<MeshFilter>();
+            var meshFilter = source.GetComponentInChildren<MeshFilter>();
             if (meshFilter == null || meshFilter.sharedMesh == null)
             {
                 return;
@@ -50,6 +59,14 @@ namespace VRClass.Interaction
             Place();
             _ghost.SetActive(true);
         }
+
+        /// <summary>色を替える（null で材質の色に戻す）。デモで「吸着できる範囲に入った」ことを緑で示すのに使う。</summary>
+        public void SetColor(Color? color)
+        {
+            _overrideColor = color;
+        }
+
+        private Color? _overrideColor;
 
         public void Hide()
         {
@@ -69,8 +86,9 @@ namespace VRClass.Interaction
             }
 
             Place();
-            float a = Mathf.Lerp(0.15f, _baseColor.a, 0.5f + 0.5f * Mathf.Sin(Time.time * pulseHz * 2f * Mathf.PI));
-            _block.SetColor(BaseColorId, new Color(_baseColor.r, _baseColor.g, _baseColor.b, a));
+            Color c = _overrideColor ?? _baseColor;
+            float a = Mathf.Lerp(0.15f, c.a, 0.5f + 0.5f * Mathf.Sin(Time.time * pulseHz * 2f * Mathf.PI));
+            _block.SetColor(BaseColorId, new Color(c.r, c.g, c.b, a));
             _renderer.SetPropertyBlock(_block);
         }
 
