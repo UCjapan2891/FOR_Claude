@@ -291,24 +291,41 @@ namespace VRClass.EditorTools
             Set(look, "rigRoot", rig);
             Set(look, "config", config);
 
-            // 組み立てた状態の仮の部品（掴む仕組みは付けない）
+            // 分解した状態で机に並べた仮の部品。物理で動き、机やほかの部品をすり抜けない
             var partsRoot = new GameObject("Parts").transform;
             var targets = new List<Transform>();
             foreach (PartSpec spec in Parts)
             {
                 GameObject go = GameObject.CreatePrimitive(spec.Shape);
-                go.name = $"{spec.Label} ({spec.Id})";
+                go.name = spec.Label;
                 go.transform.SetParent(partsRoot, false);
-                // カバーは横に外して置き、中のアームとプラッタが見えるようにする
-                Vector3 pos = spec.Id == CoverId ? spec.LayoutPosition : spec.Position;
-                go.transform.SetPositionAndRotation(pos, Quaternion.identity);
+                go.transform.SetPositionAndRotation(spec.LayoutPosition, Quaternion.identity);
                 go.transform.localScale = spec.Scale;
                 go.GetComponent<Renderer>().sharedMaterial = GetMaterial("Part_" + spec.Id, spec.Color);
+
+                if (spec.Shape != PrimitiveType.Cube)
+                {
+                    Object.DestroyImmediate(go.GetComponent<Collider>()); // 円柱のカプセルを箱に替える
+                    go.AddComponent<BoxCollider>();
+                }
+
+                var rb = go.AddComponent<Rigidbody>();
+                rb.mass = 0.2f;
+                rb.interpolation = RigidbodyInterpolation.Interpolate;
+                rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+                rb.linearDamping = 1f;
+                rb.angularDamping = 2f;
+
+                var info = go.AddComponent<PartDescription>();
+                info.displayName = DemoName(spec.Id);
+                info.role = DemoRole(spec.Id);
                 targets.Add(go.transform);
             }
 
             // 最初の対象はアーム（青）
-            targets.Sort((a, b) => (a.name.Contains(ArmId) ? 0 : 1).CompareTo(b.name.Contains(ArmId) ? 0 : 1));
+            targets.Sort((a, b) => (a.name == "アーム" ? 0 : 1).CompareTo(b.name == "アーム" ? 0 : 1));
+
+            PartInfoBoard board = CreateBlackboard(JapaneseFontSetup.FindJapaneseFontAsset());
 
             var demo = new GameObject("Emphasis Demo").AddComponent<EmphasisDemo>();
             var so = new SerializedObject(demo);
@@ -321,10 +338,99 @@ namespace VRClass.EditorTools
 
             so.FindProperty("head").objectReferenceValue = camGo.transform;
             so.FindProperty("config").objectReferenceValue = config;
+            so.FindProperty("board").objectReferenceValue = board;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.SaveScene(scene, EmphasisDemoScenePath);
             Debug.Log($"強調のデモ用シーンを作りました：{EmphasisDemoScenePath}。再生して P を押すと強調します。");
+        }
+
+        /// <summary>黒板（机の奥）。触れた部品の名前と役割を出す。</summary>
+        private static PartInfoBoard CreateBlackboard(TMP_FontAsset font)
+        {
+            var canvasGo = new GameObject("Blackboard", typeof(RectTransform));
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            var rect = (RectTransform)canvasGo.transform;
+            rect.sizeDelta = new Vector2(1400f, 700f);
+            rect.localScale = Vector3.one * 0.001f; // 1.4 m × 0.7 m
+            rect.position = new Vector3(0f, 1.38f, 1.2f);
+
+            var frame = new GameObject("Frame", typeof(RectTransform)).AddComponent<Image>();
+            frame.transform.SetParent(canvasGo.transform, false);
+            frame.color = new Color(0.45f, 0.32f, 0.2f); // 木の枠
+            Stretch((RectTransform)frame.transform);
+
+            var surface = new GameObject("Surface", typeof(RectTransform)).AddComponent<Image>();
+            surface.transform.SetParent(canvasGo.transform, false);
+            surface.color = new Color(0.12f, 0.28f, 0.22f); // 黒板の緑
+            var sr = (RectTransform)surface.transform;
+            Stretch(sr);
+            sr.offsetMin = new Vector2(24f, 24f);
+            sr.offsetMax = new Vector2(-24f, -24f);
+
+            TextMeshProUGUI title = BoardText(canvasGo.transform, "Title", font, 72f, FontStyles.Bold,
+                new Vector2(80f, -70f), new Vector2(-80f, -190f));
+            TextMeshProUGUI body = BoardText(canvasGo.transform, "Body", font, 48f, FontStyles.Normal,
+                new Vector2(80f, -220f), new Vector2(-80f, -620f));
+
+            var board = canvasGo.AddComponent<PartInfoBoard>();
+            Set(board, "title", title);
+            Set(board, "body", body);
+            title.text = PartInfoBoard.DefaultTitle;
+            body.text = PartInfoBoard.DefaultBody;
+            return board;
+        }
+
+        /// <summary>上端からの位置（top・bottom は負の値）で、左右いっぱいの文字欄を作る。</summary>
+        private static TextMeshProUGUI BoardText(Transform parent, string name, TMP_FontAsset font, float size, FontStyles style,
+            Vector2 topLeft, Vector2 bottomRight)
+        {
+            var text = new GameObject(name, typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+            text.transform.SetParent(parent, false);
+            var r = (RectTransform)text.transform;
+            r.anchorMin = new Vector2(0f, 1f);
+            r.anchorMax = new Vector2(1f, 1f);
+            r.pivot = new Vector2(0.5f, 1f);
+            r.offsetMin = new Vector2(topLeft.x, bottomRight.y);
+            r.offsetMax = new Vector2(bottomRight.x, topLeft.y);
+            text.fontSize = size;
+            text.fontStyle = style;
+            text.color = new Color(0.95f, 0.95f, 0.9f); // チョークの白
+            text.alignment = TextAlignmentOptions.TopLeft;
+            if (font != null)
+            {
+                text.font = font;
+            }
+
+            return text;
+        }
+
+        // デモ用の仮の説明。本番の授業では教材の原稿に合わせて直す
+        private static string DemoName(string id)
+        {
+            switch (id)
+            {
+                case PlatterId: return "プラッタ";
+                case ArmId: return "アーム";
+                case CoverId: return "カバー";
+                default: return id;
+            }
+        }
+
+        private static string DemoRole(string id)
+        {
+            switch (id)
+            {
+                case PlatterId:
+                    return "データを記録する円盤。表面の磁性体の向きで 0 と 1 を記録する。モーターで高速に回転する。";
+                case ArmId:
+                    return "先端に読み書きをする磁気ヘッドが付いた腕。回転するプラッタの上を動き、ヘッドを目的の位置へ運ぶ。";
+                case CoverId:
+                    return "内部を密閉してほこりから守るふた。わずかなほこりでもヘッドやプラッタを傷つけるため、中を清浄に保つ。";
+                default:
+                    return string.Empty;
+            }
         }
 
         private static XRGrabInteractable CreatePart(PartSpec spec, Transform parent, InputModeController inputMode, SessionLog sessionLog, ExperimentConfig config)
