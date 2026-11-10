@@ -63,6 +63,9 @@ namespace VRClass.Experiment
         [Tooltip("強調中に部品が動くとき、テロップを部品について動かすか")]
         public bool telopFollowsPart = true;
 
+        [Tooltip("テロップの下端を、部品の上端からこの高さ（m）だけ上に出す（表示の調整用。SPEC にない値）")]
+        [Min(0f)] public float telopGapAbovePart = 0.03f;
+
         [Header("5.1 掴む・付ける")]
         [Tooltip("ソケットに吸着する向きのずれの上限（度）")]
         [Range(0f, 180f)] public float socketAngleToleranceDeg = 15f;
@@ -127,5 +130,9 @@ namespace VRClass.Experiment
 
         [Tooltip("矢印キーで移動する速さ（m/秒）")]
         [Min(0f)] public float debugMoveSpeed = 1.0f;
+
+        /// <summary>強調の各段階の長さと Ttotal（SPEC 4.3）。条件1の停止と条件2の動きは、どちらもこれを使う。</summary>
+        public EmphasisTiming EmphasisTiming => new EmphasisTiming(pullDurationSec, scaleDurationSec,
+            rotationSpeedDegPerSec, useObservePhase, observeDurationSec, returnDurationSec);
     }
 }

@@ -1,5 +1,6 @@
 using UnityEngine;
 using VRClass.Core;
+using VRClass.Emphasis;
 using VRClass.Interaction;
 
 namespace VRClass.Lesson
@@ -12,6 +13,7 @@ namespace VRClass.Lesson
     {
         [SerializeField] private LessonController controller;
         [SerializeField] private InputModeController inputMode;
+        [SerializeField] private EmphasisController emphasis;
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private GUIStyle _style;
@@ -24,7 +26,8 @@ namespace VRClass.Lesson
             }
 
             string mode = inputMode != null ? InputModeRules.Label(inputMode.Current) : "-";
-            string text = $"入力：{mode}（F1 で切り替え）\n";
+            string text = $"入力：{mode}（F1 で切り替え）"
+                          + (emphasis != null ? $"　条件{(int)emphasis.Condition}" : string.Empty) + "\n";
 
             if (controller != null && controller.Flow != null)
             {
@@ -38,6 +41,13 @@ namespace VRClass.Lesson
                     text += $"段階 {flow.StageNumber}/{flow.StageCount}：{stage.stageName}\n";
                     text += $"対象：{stage.targetPartId}　完了条件：{CompletionLabel(stage.completion)}"
                             + (stage.isKeyPoint ? "　【要点】" : string.Empty) + "\n";
+                    if (emphasis != null && emphasis.IsRunning)
+                    {
+                        SpatialEmphasis sp = emphasis.CurrentSpatial;
+                        string phase = sp != null ? EmphasisPlan.PhaseName(sp.Phase) : "telop";
+                        text += $"強調：{EmphasisPlan.ModeName(emphasis.CurrentMode)}（{phase}）{emphasis.Elapsed:0.0} 秒\n";
+                    }
+
                     if (flow.State == LessonState.Accepting)
                     {
                         text += $"受付 {controller.AcceptingSeconds:0} 秒／ヒント {controller.HintCount} 回\n";
@@ -55,7 +65,7 @@ namespace VRClass.Lesson
             }
 
             text += "【実験者】S：スキップ／P：一時停止・再開／A×2：中断／F2：HMD を外したまね";
-            GUI.Box(new Rect(10, 10, 520, 190), text, _style);
+            GUI.Box(new Rect(10, 10, 520, 210), text, _style);
         }
 
         private static string StateLabel(LessonState s)

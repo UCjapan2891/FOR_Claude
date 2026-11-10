@@ -22,6 +22,12 @@ namespace VRClass.Tests
                 total = EmphasisMath.TotalDurationSec(c.pullDurationSec, c.scaleDurationSec,
                     c.rotationSpeedDegPerSec, c.useObservePhase, c.observeDurationSec, c.returnDurationSec);
                 Assert.AreEqual(13.5f, total, 1e-4f);
+
+                // 条件1の停止と条件2の動きが使う値（ExperimentConfig.EmphasisTiming）も同じ Ttotal
+                Assert.AreEqual(13.5f, c.EmphasisTiming.TotalSec, 1e-4f);
+                Assert.AreEqual(13.5f, new EmphasisTimeline(c.EmphasisTiming).TotalSec, 1e-4f);
+                c.useObservePhase = false;
+                Assert.AreEqual(10.5f, c.EmphasisTiming.TotalSec, 1e-4f);
             }
             finally
             {

@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using VRClass.Core;
+using VRClass.Emphasis;
 using VRClass.Experiment;
 using VRClass.Interaction;
 using VRClass.Logging;
@@ -11,6 +12,7 @@ namespace VRClass.Lesson
     /// テスト用：シーンを再生したら、決めた参加者番号で1本の授業を始める。
     /// 本番の流れ（番号入力 → 割り当て → 2本の授業）は段階8の ExperimentManager で作る。
     /// ログは Application.persistentDataPath/&lt;participantId&gt;/ に書く（本番の番号と混ざらないよう 9001 番）。
+    /// 条件は番号の割り当て（SPEC 2章）で決まる。HDD なら 9001 → 条件1、9003 → 条件2。
     /// </summary>
     public sealed class LessonTestBootstrap : MonoBehaviour
     {
@@ -23,6 +25,9 @@ namespace VRClass.Lesson
         [SerializeField] private SessionLog sessionLog;
         [SerializeField] private HeadLogger headLogger;
         [SerializeField] private InputModeController inputMode;
+
+        [Tooltip("強調。割り当てで決まった条件をここに渡す")]
+        [SerializeField] private EmphasisController emphasis;
 
         private EventLogger _events;
         private HeadLogWriter _head;
@@ -46,6 +51,11 @@ namespace VRClass.Lesson
             _events.SetParticipant(participantId, assignment.Group);
             _events.SetLesson(session);
             _head = new HeadLogWriter(LogPaths.HeadFile(root, participantId));
+
+            if (emphasis != null)
+            {
+                emphasis.SetCondition(session.Condition);
+            }
 
             sessionLog.Begin(_events, clock);
             if (headLogger != null)

@@ -162,11 +162,18 @@ namespace VRClass.EditorTools
             var presence = lessonGo.AddComponent<PresenceMonitor>();
             var hint = lessonGo.AddComponent<HintPresenter>();
 
-            // 要点：注視判定と再配置（段階6で強調を加える）
+            // 要点：注視判定と再配置 → 強調（テロップ／空間的強調）
             var relocator = lessonGo.AddComponent<Relocator>();
             var gazeJudge = lessonGo.AddComponent<GazeJudge>();
             var keyPoint = lessonGo.AddComponent<GazeKeyPointHandler>();
             var gazeDebug = lessonGo.AddComponent<GazeDebugView>();
+            var emphasis = lessonGo.AddComponent<EmphasisController>();
+            var commentaryGo = new GameObject("Commentary Audio");
+            commentaryGo.transform.SetParent(lessonGo.transform, false);
+            var commentary = commentaryGo.AddComponent<AudioSource>();
+            commentary.playOnAwake = false;
+            commentary.spatialBlend = 0f; // SPEC 4.5：2D
+            TelopView telop = CreateTelopView(font, cam, config);
 
             // UI（学習者パネル）：コントローラーの光線とマウスの両方で押せるように XRUIInputModule を使う
             var eventSystem = new GameObject("EventSystem");
@@ -190,6 +197,7 @@ namespace VRClass.EditorTools
             Set(bootstrap, "inputMode", inputMode);
             Set(overlay, "controller", controller);
             Set(overlay, "inputMode", inputMode);
+            Set(overlay, "emphasis", emphasis);
             Set(controller, "learnerPanel", panel);
             Set(controller, "hintPresenter", hint);
             Set(controller, "keyPointHandler", keyPoint);
@@ -201,6 +209,13 @@ namespace VRClass.EditorTools
             Set(gazeJudge, "relocator", relocator);
             Set(gazeJudge, "headLogger", headLogger);
             Set(keyPoint, "gazeJudge", gazeJudge);
+            Set(keyPoint, "emphasis", emphasis);
+            Set(emphasis, "config", config);
+            Set(emphasis, "sessionLog", sessionLog);
+            Set(emphasis, "telop", telop);
+            Set(emphasis, "commentarySource", commentary);
+            Set(emphasis, "head", cam != null ? cam.transform : null);
+            Set(bootstrap, "emphasis", emphasis);
             Set(gazeDebug, "gazeJudge", gazeJudge);
             Set(gazeDebug, "config", config);
             Set(hint, "hintMaterial", GetHintMaterial());
@@ -623,6 +638,50 @@ namespace VRClass.EditorTools
             mat.renderQueue = (int)RenderQueue.Transparent;
             AssetDatabase.CreateAsset(mat, path);
             return mat;
+        }
+
+        /// <summary>テロップ（SPEC 4.4）：World Space の Canvas ＋ TMP。下端の中央を部品の上端にそろえる。</summary>
+        private static TelopView CreateTelopView(TMP_FontAsset font, Camera cam, ExperimentConfig config)
+        {
+            var telopGo = new GameObject("Telop");
+            var canvasGo = new GameObject("Telop Canvas", typeof(RectTransform));
+            canvasGo.transform.SetParent(telopGo.transform, false);
+            var canvas = canvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 10;
+            var rect = (RectTransform)canvasGo.transform;
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.sizeDelta = new Vector2(700f, 140f);
+            rect.localScale = Vector3.one * 0.0005f; // 0.35 m × 0.07 m
+
+            var bg = new GameObject("Background", typeof(RectTransform)).AddComponent<Image>();
+            bg.transform.SetParent(canvasGo.transform, false);
+            bg.color = new Color(0f, 0f, 0f, 0.7f);
+            Stretch((RectTransform)bg.transform);
+
+            var text = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+            text.transform.SetParent(canvasGo.transform, false);
+            Stretch((RectTransform)text.transform);
+            ((RectTransform)text.transform).offsetMin = new Vector2(16f, 8f);
+            ((RectTransform)text.transform).offsetMax = new Vector2(-16f, -8f);
+            text.alignment = TextAlignmentOptions.Center;
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 24f;
+            text.fontSizeMax = 52f;
+            text.color = new Color(1f, 0.95f, 0.4f);
+            text.text = "テロップ";
+            if (font != null)
+            {
+                text.font = font;
+            }
+
+            var view = telopGo.AddComponent<TelopView>();
+            Set(view, "text", text);
+            Set(view, "root", canvasGo);
+            Set(view, "config", config);
+            Set(view, "head", cam != null ? cam.transform : null);
+            canvasGo.SetActive(false);
+            return view;
         }
 
         private static LessonMessageView CreateMessageView(TMP_FontAsset font)

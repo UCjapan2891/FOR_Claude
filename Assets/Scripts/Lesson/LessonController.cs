@@ -179,6 +179,18 @@ namespace VRClass.Lesson
                 {
                     Debug.LogError($"段階{i + 1}「{s.stageName}」の対象部品「{s.targetPartId}」がシーンにありません。", this);
                 }
+
+                if (s.isKeyPoint && string.IsNullOrWhiteSpace(s.telopText))
+                {
+                    Debug.LogWarning($"段階{i + 1}「{s.stageName}」は要点ですが、テロップの文言が空です。", this);
+                }
+
+                // 解説音声は Ttotal 以内にそろえる（SPEC 3章）。長いと強調の終わりで切れる
+                float total = config.EmphasisTiming.TotalSec;
+                if (s.isKeyPoint && s.commentaryClip != null && s.commentaryClip.length > total)
+                {
+                    Debug.LogWarning($"段階{i + 1}「{s.stageName}」の解説音声（{s.commentaryClip.length:0.0} 秒）が Ttotal（{total:0.0} 秒）より長いため、途中で切れます。", this);
+                }
             }
         }
 
