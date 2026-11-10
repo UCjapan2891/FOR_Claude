@@ -13,6 +13,7 @@ using UnityEngine.XR.Interaction.Toolkit.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using VRClass.Core;
+using VRClass.Emphasis;
 using VRClass.Experiment;
 using VRClass.Gaze;
 using VRClass.Interaction;
@@ -239,6 +240,91 @@ namespace VRClass.EditorTools
             Selection.activeObject = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
             Debug.Log($"テスト用のシーンを作りました：{ScenePath}（授業データ：{LessonPath}）" +
                       (font == null ? "\n日本語フォントがないため、日本語は □ で表示されます（Tools/Experiment/Setup Japanese Font）。" : string.Empty));
+        }
+
+        public const string EmphasisDemoScenePath = "Assets/Scenes/EmphasisDemo.unity";
+
+        /// <summary>
+        /// Tools/Experiment/Build Emphasis Demo Scene：発表用に、空間的強調だけを見せるシーンを作る。
+        /// XR を使わない普通のカメラで、組み立てた仮の HDD を机の上に置く。再生して P で強調。
+        /// </summary>
+        [MenuItem("Tools/Experiment/Build Emphasis Demo Scene")]
+        public static void BuildEmphasisDemo()
+        {
+            if (File.Exists(EmphasisDemoScenePath) &&
+                !EditorUtility.DisplayDialog("Build Emphasis Demo Scene", EmphasisDemoScenePath + " は既にあります。作り直しますか？", "作り直す", "やめる"))
+            {
+                return;
+            }
+
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+
+            ExperimentMenu.CreateConfig();
+            AssetDatabase.SaveAssets();
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var config = AssetDatabase.LoadAssetAtPath<ExperimentConfig>(ExperimentMenu.ConfigAssetPath);
+
+            var light = new GameObject("Directional Light").AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+
+            CreateBox("Floor", new Vector3(0f, -0.05f, 0f), new Vector3(6f, 0.1f, 6f), GetMaterial("Floor", new Color(0.8f, 0.8f, 0.78f)));
+            CreateBox("Table", new Vector3(0f, TableTopY / 2f, TableCenterZ), new Vector3(1.2f, TableTopY, 0.6f), GetMaterial("Table", new Color(0.15f, 0.17f, 0.25f)));
+            CreateBox("HDD Base", new Vector3(0f, TableTopY + 0.0025f, PartsZ), new Vector3(0.22f, 0.005f, 0.17f), GetMaterial("Base", new Color(0.3f, 0.3f, 0.3f)));
+
+            // 受講者の目の位置のカメラ（XR なし）。机と、目の高さに引き寄せた部品の両方が映るよう少し下を向く
+            var rig = new GameObject("Viewer").transform;
+            var camGo = new GameObject("Main Camera");
+            camGo.tag = "MainCamera";
+            camGo.transform.SetParent(rig, false);
+            camGo.transform.localPosition = new Vector3(0f, 1.6f, -0.35f);
+            camGo.transform.localRotation = Quaternion.Euler(25f, 0f, 0f);
+            var cam = camGo.AddComponent<Camera>();
+            cam.fieldOfView = 70f;
+            cam.nearClipPlane = 0.05f;
+            camGo.AddComponent<AudioListener>();
+            var look = camGo.AddComponent<DebugCameraControl>();
+            Set(look, "cameraTransform", camGo.transform);
+            Set(look, "rigRoot", rig);
+            Set(look, "config", config);
+
+            // 組み立てた状態の仮の部品（掴む仕組みは付けない）
+            var partsRoot = new GameObject("Parts").transform;
+            var targets = new List<Transform>();
+            foreach (PartSpec spec in Parts)
+            {
+                GameObject go = GameObject.CreatePrimitive(spec.Shape);
+                go.name = $"{spec.Label} ({spec.Id})";
+                go.transform.SetParent(partsRoot, false);
+                // カバーは横に外して置き、中のアームとプラッタが見えるようにする
+                Vector3 pos = spec.Id == CoverId ? spec.LayoutPosition : spec.Position;
+                go.transform.SetPositionAndRotation(pos, Quaternion.identity);
+                go.transform.localScale = spec.Scale;
+                go.GetComponent<Renderer>().sharedMaterial = GetMaterial("Part_" + spec.Id, spec.Color);
+                targets.Add(go.transform);
+            }
+
+            // 最初の対象はアーム（青）
+            targets.Sort((a, b) => (a.name.Contains(ArmId) ? 0 : 1).CompareTo(b.name.Contains(ArmId) ? 0 : 1));
+
+            var demo = new GameObject("Emphasis Demo").AddComponent<EmphasisDemo>();
+            var so = new SerializedObject(demo);
+            SerializedProperty list = so.FindProperty("targets");
+            list.arraySize = targets.Count;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                list.GetArrayElementAtIndex(i).objectReferenceValue = targets[i];
+            }
+
+            so.FindProperty("head").objectReferenceValue = camGo.transform;
+            so.FindProperty("config").objectReferenceValue = config;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorSceneManager.SaveScene(scene, EmphasisDemoScenePath);
+            Debug.Log($"強調のデモ用シーンを作りました：{EmphasisDemoScenePath}。再生して P を押すと強調します。");
         }
 
         private static XRGrabInteractable CreatePart(PartSpec spec, Transform parent, InputModeController inputMode, SessionLog sessionLog, ExperimentConfig config)
